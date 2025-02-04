@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Model;
 
 class Trip extends Model
@@ -18,15 +20,26 @@ class Trip extends Model
         'route_id',
         'service_id',
         'trip_headsign',
+        'direction_id',
+        'block_id',
+        'wheelchair_accessible',
+        'shape_id',
     ];
 
-    public function route()
+    public function Route(): BelongsTo
     {
         return $this->belongsTo(Route::class, 'route_id', 'route_id');
     }
 
-    public function stopTimes()
+    public function StopTime(): HasMany
     {
         return $this->hasMany(StopTime::class, 'trip_id', 'trip_id');
     }
+
+
+    public function Shape(): HasMany
+    {
+        return $this->hasMany(Shape::class, 'shape_id', 'shape_id');
+    }
+
 }

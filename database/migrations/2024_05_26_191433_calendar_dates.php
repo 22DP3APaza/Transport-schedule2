@@ -1,11 +1,8 @@
 <?php
 
-namespace App\Imports;
-
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-
 
 return new class extends Migration
 {
@@ -14,11 +11,12 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('stops', function (Blueprint $table) {
-            $table->string('stop_id')->primary();
-            $table->string('stop_name');
-            $table->string('stop_desc')->nullable();
-            $table->timestamps();
+        Schema::create('calendar_dates', function (Blueprint $table) {
+            $table->date('date')->primary();
+            $table->integer('exception_type');
+            $table->unsignedBigInteger('service_id');
+
+            $table->foreign('service_id')->references('service_id')->on('calendar')->onDelete('cascade');
         });
     }
 
@@ -27,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('stops');
+        //
     }
 };

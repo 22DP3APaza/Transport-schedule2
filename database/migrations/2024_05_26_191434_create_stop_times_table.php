@@ -12,12 +12,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('stop_times', function (Blueprint $table) {
-            $table->id();
-            $table->string('trip_id');
-            $table->time('arrival_time');
-            $table->time('departure_time');
-            $table->string('stop_id');
+            $table->time('arrival_time')->primary();
             $table->integer('stop_sequence');
+            $table->time('departure_time');
+            $table->integer('pickup_type');
+            $table->integer('drop_off_type');
+            $table->string('trip_id');
+            $table->string('stop_id');
             $table->timestamps();
 
             $table->foreign('trip_id')->references('trip_id')->on('trips')->onDelete('cascade');

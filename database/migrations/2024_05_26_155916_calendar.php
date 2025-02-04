@@ -12,8 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('calendar', function (Blueprint $table) {
-            $table->id();
-            $table->unsignedBigInteger('service_id');
+            $table->unsignedBigInteger('service_id')->primary();
             $table->tinyInteger('monday')->default(0);
             $table->tinyInteger('tuesday')->default(0);
             $table->tinyInteger('wednesday')->default(0);
@@ -25,7 +24,6 @@ return new class extends Migration
             $table->date('end_date');
             $table->timestamps();
 
-            $table->unique('service_id');
             $table->index('start_date');
             $table->index('end_date');
         });

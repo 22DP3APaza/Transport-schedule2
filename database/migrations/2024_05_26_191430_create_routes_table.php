@@ -15,6 +15,13 @@ return new class extends Migration
             $table->string('route_id')->primary();
             $table->string('route_short_name', 10);
             $table->string('route_long_name');
+            $table->string('route_desc');
+            $table->integer('route_type');
+            $table->string('route_url');
+            $table->string('route_color');
+            $table->string('route_text_color');
+            $table->integer('route_sort_order');
+
             $table->timestamps();
         });
     }
