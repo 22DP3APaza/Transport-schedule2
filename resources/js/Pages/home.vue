@@ -42,11 +42,11 @@ import DropdownLink from '@/Components/DropdownLink.vue';
       <a :href="route('login')">Login</a>
     </li>
     <li><a>Settings</a></li>
-    <li v-if="$page.props.auth.user">
-      <DropdownLink :href="route('logout')" method="post" as="button">
-        Log Out
-      </DropdownLink>
-    </li>
+    <div v-if="$page.props.auth.user">
+        <li>
+            <Link :href="route('logout')" method="post">Log Out</Link>
+        </li>
+    </div>
   </ul>
   </div>
 </div>

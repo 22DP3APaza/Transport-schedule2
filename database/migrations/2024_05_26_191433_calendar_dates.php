@@ -12,12 +12,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('calendar_dates', function (Blueprint $table) {
-            $table->date('date')->primary();
+            $table->id();
+            $table->date('date');
             $table->integer('exception_type');
             $table->unsignedBigInteger('service_id');
+            $table->timestamps();
 
             $table->foreign('service_id')->references('service_id')->on('calendar')->onDelete('cascade');
         });
+
+
+
     }
 
     /**

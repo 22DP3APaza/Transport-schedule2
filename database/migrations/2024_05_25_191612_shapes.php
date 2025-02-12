@@ -10,15 +10,17 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-    {
-        Schema::create('shapes', function (Blueprint $table) {
-            $table->string('shape_id')->primary();
-            $table->double('shape_pt_lat');
-            $table->double('shape_pt_lon');
-            $table->integer('shape_pt_sequence');
-            $table->double('shape_dist_traveled');
-        });
-    }
+{
+    Schema::create('shapes', function (Blueprint $table) {
+        $table->string('shape_id')->primary();
+        $table->double('shape_pt_lat');
+        $table->double('shape_pt_lon');
+        $table->integer('shape_pt_sequence');
+        $table->double('shape_dist_traveled')->nullable();
+        $table->timestamps();
+    });
+}
+
 
     /**
      * Reverse the migrations.

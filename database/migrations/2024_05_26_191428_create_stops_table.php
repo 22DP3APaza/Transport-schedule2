@@ -18,14 +18,15 @@ return new class extends Migration
             $table->string('stop_id')->primary();
             $table->string('stop_name');
             $table->string('stop_desc')->nullable();
-            $table->integer('stop_code');
+            $table->integer('stop_code')->nullable(); 
             $table->double('stop_lat');
             $table->double('stop_lon');
             $table->string('stop_url');
-            $table->string('location_type');
-            $table->string('parent_station');
+            $table->string('location_type')->nullable();
+            $table->string('parent_station')->nullable();
             $table->timestamps();
         });
+
     }
 
     /**

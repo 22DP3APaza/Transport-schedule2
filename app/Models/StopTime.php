@@ -11,6 +11,7 @@ class StopTime extends Model
     use HasFactory;
 
     protected $fillable = [
+        'id',
         'trip_id',
         'arrival_time',
         'departure_time',

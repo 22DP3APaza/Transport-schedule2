@@ -12,7 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('stop_times', function (Blueprint $table) {
-            $table->time('arrival_time')->primary();
+            $table->id();
+            $table->time('arrival_time');
             $table->integer('stop_sequence');
             $table->time('departure_time');
             $table->integer('pickup_type');

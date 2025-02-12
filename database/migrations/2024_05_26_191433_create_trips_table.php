@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('trip_headsign');
             $table->integer('direction_id');
             $table->integer('block_id');
-            $table->string('wheelchair_accessible');
+            $table->string('wheelchair_accessible')->nullable();
             $table->string('route_id');
             $table->unsignedBigInteger('service_id');
             $table->string('shape_id');
