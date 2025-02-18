@@ -16,8 +16,8 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 </a>
   </div>
   <div class="navbar-center">
-    <div class="navbar bg-base-100"><a href="/buss" class="btn btn-ghost text-xl">Buss</a></div>
-    <div class="navbar bg-base-100"><a href="/trolleybuss" class="btn btn-ghost text-xl">Trolleybuss</a></div>
+    <div class="navbar bg-base-100"><a href="/bus" class="btn btn-ghost text-xl">Buss</a></div>
+    <div class="navbar bg-base-100"><a href="/trolleybus" class="btn btn-ghost text-xl">Trolleybuss</a></div>
     <div class="navbar bg-base-100"><a href="/tram" class="btn btn-ghost text-xl">Tram</a></div>
     <div class="navbar bg-base-100"><a href="/train" class="btn btn-ghost text-xl">Train</a></div>
   </div>
@@ -42,11 +42,11 @@ import DropdownLink from '@/Components/DropdownLink.vue';
       <a :href="route('login')">Login</a>
     </li>
     <li><a>Settings</a></li>
-    <li v-if="$page.props.auth.user">
-      <DropdownLink :href="route('logout')" method="post" as="button">
-        Log Out
-      </DropdownLink>
-    </li>
+    <div v-if="$page.props.auth.user">
+        <li>
+            <Link :href="route('logout')" method="post">Log Out</Link>
+        </li>
+    </div>
   </ul>
   </div>
 </div>

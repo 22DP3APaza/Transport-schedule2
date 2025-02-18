@@ -19,7 +19,7 @@ const searchRoute = () => {
         router.post('/search-route', {
             from: from.value,
             to: to.value,
-            type: 'tram' // Add a type parameter to filter by tram routes
+            type: 'trol' // Add a type parameter to filter by trolleybus routes
         });
     } else {
         alert("Please enter both 'From' and 'To' values.");
@@ -30,7 +30,7 @@ const routeDetailsUrl = (routeId) => route('route.details', { route_id: routeId 
 </script>
 
 <template>
-    <Head title="Tram" />
+    <Head title="Trolleybus" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="icon" type="image/png" href="/images/logo.webp">
 

@@ -16,8 +16,8 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 </a>
   </div>
   <div class="navbar-center">
-    <div class="navbar bg-base-100"><a href="/buss" class="btn btn-ghost text-xl">Buss</a></div>
-    <div class="navbar bg-base-100"><a href="/trolleybuss" class="btn btn-ghost text-xl">Trolleybuss</a></div>
+    <div class="navbar bg-base-100"><a href="/bus" class="btn btn-ghost text-xl">Buss</a></div>
+    <div class="navbar bg-base-100"><a href="/trolleybus" class="btn btn-ghost text-xl">Trolleybuss</a></div>
     <div class="navbar bg-base-100"><a href="/tram" class="btn btn-ghost text-xl">Tram</a></div>
     <div class="navbar bg-base-100"><a href="/train" class="btn btn-ghost text-xl">Train</a></div>
   </div>
