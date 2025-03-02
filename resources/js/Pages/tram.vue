@@ -12,6 +12,10 @@ const sortedRoutes = computed(() =>
     [...routes.value].sort((a, b) => Number(a.route_short_name) - Number(b.route_short_name))
 );
 
+const isActive = (routeName) => {
+    return page.url.startsWith(routeName);
+};
+
 // Search for the matching route and navigate
 const searchRoute = () => {
     if (from.value && to.value) {
@@ -43,11 +47,19 @@ const routeDetailsUrl = (routeId) => route('route.details', { route_id: routeId 
             </a>
         </div>
         <div class="navbar-center">
-            <div class="navbar bg-base-100"><a href="/bus" class="btn btn-ghost text-xl">Bus</a></div>
-            <div class="navbar bg-base-100"><a href="/trolleybus" class="btn btn-ghost text-xl">Trolleybus</a></div>
-            <div class="navbar bg-base-100"><a href="/tram" class="btn btn-ghost text-xl">Tram</a></div>
-            <div class="navbar bg-base-100"><a href="/train" class="btn btn-ghost text-xl">Train</a></div>
+        <div class="navbar bg-base-100">
+            <a href="/bus" :class="['btn btn-ghost text-xl', isActive('/bus') ? 'bg-blue-500 text-white' : '']">Bus</a>
         </div>
+        <div class="navbar bg-base-100">
+            <a href="/trolleybus" :class="['btn btn-ghost text-xl', isActive('/trolleybus') ? 'bg-blue-500 text-white' : '']">Trolleybus</a>
+        </div>
+        <div class="navbar bg-base-100">
+            <a href="/tram" :class="['btn btn-ghost text-xl', isActive('/tram') ? 'bg-blue-500 text-white' : '']">Tram</a>
+        </div>
+        <div class="navbar bg-base-100">
+            <a href="/train" :class="['btn btn-ghost text-xl', isActive('/train') ? 'bg-blue-500 text-white' : '']">Train</a>
+        </div>
+    </div>
         <div class="navbar-end">
             <div class="dropdown dropdown-end">
                 <button tabindex="0" role="button" class="btn btn-square btn-ghost">
@@ -82,17 +94,18 @@ const routeDetailsUrl = (routeId) => route('route.details', { route_id: routeId 
 
         <!-- Sorted Routes Buttons -->
         <div class="container w-full max-w-xl mt-6 flex flex-wrap gap-2 justify-center">
-            <template v-if="sortedRoutes.length">
-                <button
-                    v-for="route in sortedRoutes"
-                    :key="route.route_id"
-                    @click="() => router.visit(routeDetailsUrl(route.route_id))"
-                    :title="route.route_long_name"
-                    class="btn btn-square w-10 h-10 flex items-center justify-center bg-blue-500 text-white hover:bg-blue-700 transition rounded-md shadow text-sm font-bold">
-                    {{ route.route_short_name }}
-                </button>
-            </template>
-            <p v-else class="text-gray-500">No routes available.</p>
+        <template v-if="sortedRoutes.length">
+            <button
+                v-for="route in sortedRoutes"
+                :key="route.route_id"
+                @click="() => router.visit(routeDetailsUrl(route.route_id))"
+                :title="route.route_long_name"
+                class="btn btn-square w-10 h-10 flex items-center justify-center text-white hover:brightness-90 transition rounded-md shadow text-sm font-bold"
+                :style="{ backgroundColor: route.route_color ? `#${route.route_color}` : '#3490dc' }">
+                {{ route.route_short_name }}
+            </button>
+        </template>
+        <p v-else class="text-gray-500">No routes available.</p>
         </div>
     </div>
 </template>
