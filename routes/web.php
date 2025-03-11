@@ -12,6 +12,8 @@ use App\Models\Route as ModelRoute;
 use App\Models\Stop;
 use App\Models\StopTime;
 use App\Models\Trip;
+use Illuminate\Support\Facades\DB;
+
 
 Route::get('/', function () {
     return Inertia::render('home', [
@@ -52,22 +54,31 @@ Route::get('/test', function () {
 
 
 Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id = null) {
-    $route = ModelRoute::where('route_id', $route_id)->firstOrFail(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
+    // Fetch the route details
+    $route = ModelRoute::where('route_id', $route_id)->firstOrFail([
+        'route_id', 'route_short_name', 'route_long_name', 'route_color'
+    ]);
 
+    // Fetch all trips for the route
     $trips = Trip::where('route_id', $route_id)->get();
 
-    // Group trips by trip_headsign
-    $groupedTrips = $trips->groupBy('trip_headsign')->map(function ($group) {
+    // Group trips by both trip_headsign and shape_id to ensure uniqueness
+    $groupedTrips = $trips->groupBy(function ($trip) {
+        return $trip->trip_headsign . '|' . $trip->shape_id;
+    })->map(function ($group) {
         return $group->first(); // Take the first trip in each group
     });
 
+    // Determine the selected trip
     $trip = $trip_id ? $trips->where('trip_id', $trip_id)->first() : $groupedTrips->first();
 
+    // Fetch stops for the selected trip
     $stops = $trip ? Stop::join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
         ->where('stop_times.trip_id', $trip->trip_id)
         ->orderBy('stop_times.stop_sequence')
         ->get(['stops.*', 'stop_times.stop_sequence']) : [];
 
+    // Render the Inertia view with the data
     return Inertia::render('RouteDetails', [
         'route' => $route,
         'trips' => $groupedTrips->values(), // Pass grouped trips to the frontend
@@ -84,6 +95,36 @@ Route::get('/route/details/{route_id}/{trip_id}/stops', function ($route_id, $tr
 
     return response()->json($stops);
 })->name('route.trip.stops');
+
+Route::get('/stop/times/{stop_id}', function ($stop_id) {
+    $type = request('type', 'workdays'); // Default to workdays
+
+    $query = DB::table('calendar');
+
+    if ($type === 'workdays') {
+        $query->where('monday', 1)
+              ->where('tuesday', 1)
+              ->where('wednesday', 1)
+              ->where('thursday', 1)
+              ->where('friday', 1);
+    } else {
+        $query->where('saturday', 1)
+              ->orWhere('sunday', 1);
+    }
+
+    $serviceIds = $query->pluck('service_id');
+
+    $stopTimes = StopTime::where('stop_id', $stop_id)
+        ->whereIn('trip_id', function ($subQuery) use ($serviceIds) {
+            $subQuery->select('trip_id')
+                ->from('trips')
+                ->whereIn('service_id', $serviceIds);
+        })
+        ->orderBy('arrival_time')
+        ->get(['trip_id', 'arrival_time', 'departure_time', 'stop_sequence']);
+
+    return response()->json($stopTimes);
+})->name('stop.times');
 
 // Import routes
 Route::post('/import/{type}', [GraphicController::class, 'importExcelData']);
