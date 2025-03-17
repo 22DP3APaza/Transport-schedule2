@@ -98,9 +98,29 @@ Route::get('/route/details/{route_id}/{trip_id}/stops', function ($route_id, $tr
 
 Route::get('/stop/times/{stop_id}', function ($stop_id) {
     $type = request('type', 'workdays'); // Default to workdays
+    $route_id = request('route_id'); // Get the selected route ID
+    $trip_id = request('trip_id'); // Get the selected trip ID
 
+    if (!$route_id || !$trip_id) {
+        return response()->json(['error' => 'Route ID and Trip ID are required'], 400);
+    }
+
+    // Get the shape_id for the selected trip
+    $shapeId = DB::table('trips')
+        ->where('trip_id', $trip_id)
+        ->value('shape_id');
+
+    if (!$shapeId) {
+        return response()->json(['error' => 'No matching shape_id found'], 404);
+    }
+
+    // Get all trips that share the same shape_id
+    $tripIds = DB::table('trips')
+        ->where('shape_id', $shapeId)
+        ->pluck('trip_id');
+
+    // Get service IDs matching the selected type (workdays or weekends)
     $query = DB::table('calendar');
-
     if ($type === 'workdays') {
         $query->where('monday', 1)
               ->where('tuesday', 1)
@@ -108,23 +128,47 @@ Route::get('/stop/times/{stop_id}', function ($stop_id) {
               ->where('thursday', 1)
               ->where('friday', 1);
     } else {
-        $query->where('saturday', 1)
-              ->orWhere('sunday', 1);
+        $query->where(function ($query) {
+            $query->where('saturday', 1)
+                  ->orWhere('sunday', 1);
+        });
     }
-
     $serviceIds = $query->pluck('service_id');
 
-    $stopTimes = StopTime::where('stop_id', $stop_id)
-        ->whereIn('trip_id', function ($subQuery) use ($serviceIds) {
-            $subQuery->select('trip_id')
-                ->from('trips')
-                ->whereIn('service_id', $serviceIds);
-        })
-        ->orderBy('arrival_time')
-        ->get(['trip_id', 'arrival_time', 'departure_time', 'stop_sequence']);
+    // Get the stop sequence for this stop in the given shape_id
+    $stopSequence = DB::table('stop_times')
+        ->whereIn('trip_id', $tripIds)
+        ->where('stop_id', $stop_id)
+        ->value('stop_sequence');
+
+    if (!$stopSequence) {
+        return response()->json(['error' => 'No matching stop sequence found'], 404);
+    }
+
+    // Query stop times for the specific stop sequence within the same shape_id
+    $stopTimes = DB::table('stop_times')
+        ->join('trips', 'stop_times.trip_id', '=', 'trips.trip_id')
+        ->whereIn('stop_times.trip_id', $tripIds)
+        ->where('trips.route_id', $route_id)
+        ->whereIn('trips.service_id', $serviceIds)
+        ->where('stop_times.stop_sequence', $stopSequence)
+        ->orderBy('stop_times.arrival_time')
+        ->get([
+            'stop_times.trip_id',
+            'stop_times.arrival_time',
+            'stop_times.departure_time',
+            'stop_times.stop_sequence'
+        ]);
+
+    if ($stopTimes->isEmpty()) {
+        return response()->json(['error' => 'No stop times found for this stop sequence'], 404);
+    }
 
     return response()->json($stopTimes);
 })->name('stop.times');
+
+
+
 
 // Import routes
 Route::post('/import/{type}', [GraphicController::class, 'importExcelData']);
