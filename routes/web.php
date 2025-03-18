@@ -14,7 +14,6 @@ use App\Models\StopTime;
 use App\Models\Trip;
 use Illuminate\Support\Facades\DB;
 
-
 Route::get('/', function () {
     return Inertia::render('home', [
         'canLogin' => Route::has('login'),
@@ -51,8 +50,7 @@ Route::get('/test', function () {
     return Inertia::render('Test');
 });
 
-
-
+// Route details
 Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id = null) {
     // Fetch the route details
     $route = ModelRoute::where('route_id', $route_id)->firstOrFail([
@@ -167,8 +165,47 @@ Route::get('/stop/times/{stop_id}', function ($stop_id) {
     return response()->json($stopTimes);
 })->name('stop.times');
 
+// New route for StopTimes.vue
+Route::get('/stoptimes', function () {
+    $trip_id = request('trip_id'); // Get the selected trip ID
+    $start_time = request('start_time'); // Get the selected start time
 
+    if (!$trip_id || !$start_time) {
+        return response()->json(['error' => 'Trip ID and Start Time are required'], 400);
+    }
 
+    // Fetch all stop times for the trip
+    $stopTimes = DB::table('stop_times')
+        ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
+        ->where('stop_times.trip_id', $trip_id)
+        ->orderBy('stop_times.stop_sequence')
+        ->get([
+            'stops.stop_name',
+            'stop_times.arrival_time',
+            'stop_times.departure_time',
+            'stop_times.stop_sequence',
+        ]);
+
+    // Adjust times relative to the start time
+    $adjustedStopTimes = $stopTimes->map(function ($stop) use ($start_time) {
+        $arrivalTime = strtotime($stop->arrival_time);
+        $startTime = strtotime($start_time);
+
+        // Calculate the adjusted arrival time
+        $adjustedArrivalTime = date('H:i:s', $arrivalTime - $startTime);
+
+        return [
+            'stop_name' => $stop->stop_name,
+            'arrival_time' => $adjustedArrivalTime,
+            'departure_time' => $stop->departure_time,
+            'sequence' => $stop->stop_sequence,
+        ];
+    });
+
+    return Inertia::render('StopTimes', [
+        'stopTimes' => $adjustedStopTimes,
+    ]);
+})->name('stoptimes');
 
 // Import routes
 Route::post('/import/{type}', [GraphicController::class, 'importExcelData']);

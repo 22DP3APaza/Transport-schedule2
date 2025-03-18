@@ -1,7 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue';
-import { usePage } from '@inertiajs/vue3';
-import { Link } from '@inertiajs/vue3';
+import { usePage, router } from '@inertiajs/vue3';
 
 // Get the page props
 const page = usePage();
@@ -23,22 +22,27 @@ watch(selectedTrip, (newTrip) => {
             .then(response => response.json())
             .then(data => {
                 stops.value = data;
+                // Automatically select the first stop if available
+                if (data.length > 0) {
+                    selectedStop.value = data[0];
+                } else {
+                    selectedStop.value = null; // Clear selection if no stops are available
+                }
             })
             .catch(error => console.error('Error fetching stops:', error));
     }
 }, { immediate: true });
 
-// Format time to remove milliseconds
 const formatTime = (time) => {
     if (!time) return '';
-    return time.split('.')[0]; // Removes milliseconds (e.g., "12:30:45.000" → "12:30:45")
+    return time.split(':').slice(0, 2).join(':');
 };
 
 // Fetch stop times for the selected stop
-const fetchStopTimes = async (type) => {
+const fetchStopTimes = async () => {
     if (!selectedStop.value || !routedata.value || !selectedTrip.value) return;
 
-    showWorkdays.value = type === 'workdays';
+    const type = showWorkdays.value ? 'workdays' : 'weekends';
     const url = `/stop/times/${selectedStop.value.stop_id}?type=${type}&route_id=${routedata.value.route_id}&trip_id=${selectedTrip.value.trip_id}`;
 
     try {
@@ -55,18 +59,23 @@ const fetchStopTimes = async (type) => {
     }
 };
 
-// Handle stop button click
-const handleStopClick = (stop) => {
-    selectedStop.value = stop;
-    fetchStopTimes(showWorkdays.value ? 'workdays' : 'weekends');
-};
-
 // Watch for changes in the route, trip, or selected stop and update stop times
 watch([routedata, selectedTrip, selectedStop], () => {
     if (selectedStop.value && selectedTrip.value) {
-        fetchStopTimes(showWorkdays.value ? 'workdays' : 'weekends');
+        fetchStopTimes();
     }
 });
+
+// Handle time button click
+const handleTimeClick = (time) => {
+    const queryParams = {
+        trip_id: selectedTrip.value.trip_id,
+        start_time: time.departure_time,
+    };
+
+    // Navigate to StopTimes.vue with query parameters
+    router.visit('/stoptimes', { queryParams });
+};
 </script>
 
 <template>
@@ -126,41 +135,35 @@ watch([routedata, selectedTrip, selectedStop], () => {
             </select>
         </div>
         <div class="mt-4">
-            <h2 class="text-lg font-semibold">Stops</h2>
-            <ul class="mt-2">
-                <li v-for="stop in stops" :key="stop.stop_id" class="py-2">
-                    <button @click="handleStopClick(stop)" class="btn btn-outline btn-sm text-left">
-                        {{ stop.stop_name }}
-                    </button>
-                </li>
-            </ul>
+            <label for="stop-select" class="block text-sm font-medium text-gray-700">Select Stop</label>
+            <select id="stop-select" v-model="selectedStop" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                <option v-for="stop in stops" :key="stop.stop_id" :value="stop">
+                    {{ stop.stop_name }}
+                </option>
+            </select>
         </div>
 
-        <!-- Stop Times Table -->
+        <!-- Stop Times Display -->
         <div v-if="selectedStop" class="mt-6">
             <h2 class="text-lg font-semibold">Stop Times for {{ selectedStop.stop_name }}</h2>
             <div class="flex items-center mb-4">
                 <label class="mr-2">Show:</label>
-                <button @click="fetchStopTimes('workdays')" :class="{'btn-primary': showWorkdays, 'btn-outline': !showWorkdays}" class="btn btn-sm mr-2">
+                <button @click="showWorkdays = true; fetchStopTimes()" :class="{'btn-primary': showWorkdays, 'btn-outline': !showWorkdays}" class="btn btn-sm mr-2">
                     Workdays
                 </button>
-                <button @click="fetchStopTimes('weekends')" :class="{'btn-primary': !showWorkdays, 'btn-outline': showWorkdays}" class="btn btn-sm">
+                <button @click="showWorkdays = false; fetchStopTimes()" :class="{'btn-primary': !showWorkdays, 'btn-outline': showWorkdays}" class="btn btn-sm">
                     Weekends
                 </button>
             </div>
-            <div v-if="stopTimes.length > 0" class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100 mt-2">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Departure Time</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="(time, index) in stopTimes" :key="index">
-                            <td>{{ time.departure_time }}</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div v-if="stopTimes.length > 0" class="grid grid-cols-[repeat(auto-fill,minmax(60px,1fr))] gap-1 justify-items-center">
+                <button
+                    v-for="(time, index) in stopTimes"
+                    :key="index"
+                    class="btn btn-xs border-none bg-transparent hover:bg-primary hover:text-white transition px-2 py-1"
+                    @click="handleTimeClick(time)"
+                >
+                    {{ time.departure_time }}
+                </button>
             </div>
             <div v-else>
                 <p>No stop times available for this stop and trip.</p>
