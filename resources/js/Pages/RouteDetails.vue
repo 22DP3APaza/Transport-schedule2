@@ -68,14 +68,14 @@ watch([routedata, selectedTrip, selectedStop], () => {
 
 // Handle time button click
 const handleTimeClick = (time) => {
-    const queryParams = {
-        trip_id: selectedTrip.value.trip_id,
-        start_time: time.departure_time,
-    };
+    if (!selectedTrip.value || !selectedTrip.value.trip_id || !selectedStop.value || !time.departure_time) {
+        console.error('Missing required data for time click');
+        return;
+    }
 
-    // Navigate to StopTimes.vue with query parameters
-    router.visit('/stoptimes', { queryParams });
+    router.visit(`/stoptimes?trip_id=${selectedTrip.value.trip_id}&stop_id=${selectedStop.value.stop_id}&departure_time=${time.departure_time}`);
 };
+
 </script>
 
 <template>
@@ -157,13 +157,14 @@ const handleTimeClick = (time) => {
             </div>
             <div v-if="stopTimes.length > 0" class="grid grid-cols-[repeat(auto-fill,minmax(60px,1fr))] gap-1 justify-items-center">
                 <button
-                    v-for="(time, index) in stopTimes"
-                    :key="index"
-                    class="btn btn-xs border-none bg-transparent hover:bg-primary hover:text-white transition px-2 py-1"
-                    @click="handleTimeClick(time)"
-                >
-                    {{ time.departure_time }}
-                </button>
+    v-for="(time, index) in stopTimes"
+    :key="index"
+    class="btn btn-xs border-none bg-transparent hover:bg-primary hover:text-white transition px-2 py-1 relative"
+    @click="handleTimeClick(time)"
+    :title="selectedTrip?.trip_id"
+>
+    {{ time.departure_time }}
+</button>
             </div>
             <div v-else>
                 <p>No stop times available for this stop and trip.</p>

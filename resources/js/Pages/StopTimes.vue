@@ -1,58 +1,69 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { ref, computed } from 'vue';
+import { usePage, router } from '@inertiajs/vue3';
 
-// Get the page props
-const page = usePage();
-const stopTimes = ref([]); // Stores the stop times for the trip
+const { props } = usePage();
+const trips = ref(props.trips || {});
+const initialTripId = ref(props.initialTripId || '');
+const selectedStopId = ref(props.selectedStopId || '');
+const selectedDepartureTime = ref(props.selectedDepartureTime || '');
+const routeId = ref(props.routeId || '');
+const error = ref(props.error || '');
 
-// Fetch stop times passed from the backend
-onMounted(() => {
-    stopTimes.value = page.props.stopTimes || [];
+const matchingTrips = computed(() => {
+    return Object.entries(trips.value).filter(([tripId, stops]) => {
+        return stops.some(stop =>
+            stop.stop_id === selectedStopId.value &&
+            stop.departure_time.startsWith(selectedDepartureTime.value)
+        );
+    });
 });
+
+const goBack = () => {
+    router.visit(`/route/details/${routeId.value}`);
+};
 </script>
 
 <template>
     <Head title="Stop Times" />
-
-    <!-- Header Section -->
-    <header class="navbar bg-base-100">
-        <div class="navbar-start">
-            <button class="btn btn-square btn-ghost" @click="$router.back()">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="h-6 w-6 stroke-current">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-                </svg>
-            </button>
-        </div>
-        <div class="navbar-center">
-            <h1 class="text-xl font-bold">Stop Times</h1>
-        </div>
-    </header>
-
-    <!-- Main Content -->
     <div class="container mx-auto mt-6 p-4">
-        <div v-if="stopTimes.length > 0" class="overflow-x-auto rounded-box border border-base-content/5 bg-base-100 mt-2">
-            <table class="table w-full">
-                <thead>
-                    <tr>
-                        <th>Sequence</th>
-                        <th>Stop Name</th>
-                        <th>Arrival Time</th>
-                        <th>Departure Time</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="stop in stopTimes" :key="stop.sequence">
-                        <td>{{ stop.sequence }}</td>
-                        <td>{{ stop.stop_name }}</td>
-                        <td>{{ stop.arrival_time }}</td>
-                        <td>{{ stop.departure_time }}</td>
-                    </tr>
-                </tbody>
-            </table>
+        <button @click="goBack" class="btn btn-outline mb-4">← Back</button>
+
+        <div v-if="error" class="alert alert-error mb-4">
+            {{ error }}
         </div>
-        <div v-else>
-            <p class="text-center text-gray-500">No stop times available for this trip.</p>
+
+        <div class="space-y-6">
+            <div v-for="[tripId, stops] in matchingTrips" :key="tripId" class="bg-base-100 p-4 rounded-lg border">
+                <h2 class="text-lg font-semibold mb-2"></h2>
+
+                <div class="overflow-x-auto">
+                    <table class="table w-full">
+                        <thead>
+                            <tr>
+                                <th>Stop Name</th>
+                                <th>Departure Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="stop in stops"
+                                :key="`${tripId}-${stop.stop_sequence}`"
+                                :class="{
+                                    'bg-primary text-primary-content': stop.stop_id === selectedStopId && stop.departure_time.startsWith(selectedDepartureTime)
+                                }"
+                            >
+                                <td>{{ stop.stop_name }}</td>
+                                <td>{{ stop.departure_time }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="matchingTrips.length === 0 && !error" class="text-center text-gray-500 mt-8">
+            <p>No matching trips found.</p>
         </div>
     </div>
 </template>

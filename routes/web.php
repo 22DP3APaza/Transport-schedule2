@@ -125,12 +125,15 @@ Route::get('/stop/times/{stop_id}', function ($stop_id) {
               ->where('wednesday', 1)
               ->where('thursday', 1)
               ->where('friday', 1);
-    } else {
+    } elseif ($type === 'weekends') {
         $query->where(function ($query) {
             $query->where('saturday', 1)
                   ->orWhere('sunday', 1);
         });
+    } else {
+        return response()->json(['error' => 'Invalid type specified. Use "workdays" or "weekends".'], 400);
     }
+
     $serviceIds = $query->pluck('service_id');
 
     // Get the stop sequence for this stop in the given shape_id
@@ -165,45 +168,75 @@ Route::get('/stop/times/{stop_id}', function ($stop_id) {
     return response()->json($stopTimes);
 })->name('stop.times');
 
-// New route for StopTimes.vue
-Route::get('/stoptimes', function () {
-    $trip_id = request('trip_id'); // Get the selected trip ID
-    $start_time = request('start_time'); // Get the selected start time
 
-    if (!$trip_id || !$start_time) {
-        return response()->json(['error' => 'Trip ID and Start Time are required'], 400);
+Route::get('/stoptimes', function () {
+    $trip_id = request('trip_id');
+    $stop_id = request('stop_id');
+    $departure_time = request('departure_time'); // Format: "HH:MM" or "H:MM"
+
+    if (!$trip_id || !$stop_id || !$departure_time) {
+        return response()->json(['error' => 'Trip ID, Stop ID and Departure Time are required'], 400);
     }
 
-    // Fetch all stop times for the trip
+    // Format the time for database comparison (convert "5:15" to "05:15:00")
+    $formattedTime = \Carbon\Carbon::createFromFormat('G:i', $departure_time)->format('H:i:s');
+
+    // Get route and shape info from the trip
+    $tripInfo = DB::table('trips')
+        ->where('trip_id', $trip_id)
+        ->first(['route_id', 'shape_id']);
+
+    if (!$tripInfo) {
+        return response()->json(['error' => 'Trip not found'], 404);
+    }
+
+    // Get the stop sequence for this stop in the original trip
+    $originalSequence = DB::table('stop_times')
+        ->where('trip_id', $trip_id)
+        ->where('stop_id', $stop_id)
+        ->value('stop_sequence');
+
+    if (!$originalSequence) {
+        return response()->json(['error' => 'Stop not found in original trip'], 404);
+    }
+
+    // Get all trips with same shape and route that have this stop at the same sequence with matching departure time
+    $matchingTripIds = DB::table('stop_times')
+        ->where('stop_id', $stop_id)
+        ->where('stop_sequence', $originalSequence)
+        ->where('departure_time', $formattedTime)
+        ->whereIn('trip_id', function($query) use ($tripInfo) {
+            $query->select('trip_id')
+                ->from('trips')
+                ->where('shape_id', $tripInfo->shape_id)
+                ->where('route_id', $tripInfo->route_id);
+        })
+        ->pluck('trip_id');
+
+    // Get all stop times for matching trips
     $stopTimes = DB::table('stop_times')
         ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
-        ->where('stop_times.trip_id', $trip_id)
+        ->whereIn('stop_times.trip_id', $matchingTripIds)
+        ->orderBy('stop_times.trip_id')
         ->orderBy('stop_times.stop_sequence')
         ->get([
             'stops.stop_name',
+            'stops.stop_id',
             'stop_times.arrival_time',
             'stop_times.departure_time',
             'stop_times.stop_sequence',
+            'stop_times.trip_id'
         ]);
 
-    // Adjust times relative to the start time
-    $adjustedStopTimes = $stopTimes->map(function ($stop) use ($start_time) {
-        $arrivalTime = strtotime($stop->arrival_time);
-        $startTime = strtotime($start_time);
-
-        // Calculate the adjusted arrival time
-        $adjustedArrivalTime = date('H:i:s', $arrivalTime - $startTime);
-
-        return [
-            'stop_name' => $stop->stop_name,
-            'arrival_time' => $adjustedArrivalTime,
-            'departure_time' => $stop->departure_time,
-            'sequence' => $stop->stop_sequence,
-        ];
-    });
+    // Group by trip_id
+    $groupedByTrip = $stopTimes->groupBy('trip_id');
 
     return Inertia::render('StopTimes', [
-        'stopTimes' => $adjustedStopTimes,
+        'trips' => $groupedByTrip,
+        'initialTripId' => $trip_id,
+        'routeId' => $tripInfo->route_id,
+        'selectedStopId' => $stop_id,
+        'selectedDepartureTime' => $departure_time
     ]);
 })->name('stoptimes');
 
