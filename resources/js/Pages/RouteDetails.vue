@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { usePage, router } from '@inertiajs/vue3';
 
 // Get the page props
@@ -11,6 +11,7 @@ const stops = ref(page.props.stops || []);
 const stopTimes = ref([]); // Stores stop times for the selected stop
 const selectedStop = ref(null); // Stores the currently selected stop
 const showWorkdays = ref(true); // Default to showing workdays
+const currentTime = ref(new Date().toLocaleTimeString()); // Real-time clock
 
 // Theme Management
 const currentTheme = ref('light');
@@ -48,6 +49,7 @@ watch(selectedTrip, (newTrip) => {
     }
 }, { immediate: true });
 
+// Format time to HH:MM
 const formatTime = (time) => {
     if (!time) return '';
     return time.split(':').slice(0, 2).join(':');
@@ -109,6 +111,18 @@ const getTransportTypeFromRouteId = (routeId) => {
     if (routeId.includes('tram')) return 'tram';
     return null; // Default case if no match is found
 };
+
+// Real-time clock functionality
+const updateTime = () => {
+    currentTime.value = new Date().toLocaleTimeString();
+};
+let timeInterval;
+onMounted(() => {
+    timeInterval = setInterval(updateTime, 1000);
+});
+onUnmounted(() => {
+    clearInterval(timeInterval);
+});
 </script>
 
 <template>
@@ -223,8 +237,18 @@ const getTransportTypeFromRouteId = (routeId) => {
     <!-- Route Details Section -->
     <div class="container mx-auto mt-6 p-4">
         <button @click="goBack" class="btn btn-outline mb-4">← Back</button>
-        <div class="btn btn-square w-10 h-10 flex items-center justify-center text-white hover:brightness-90 transition rounded-md shadow text-sm font-bold" :style="{ backgroundColor: '#' + routedata.route_color }">
-            {{ routedata.route_short_name }}
+        <div class="flex items-center space-x-4">
+            <!-- Route Short Name Button -->
+            <div
+                class="btn btn-square w-10 h-10 flex items-center justify-center text-white hover:brightness-90 transition rounded-md shadow text-sm font-bold"
+                :style="{ backgroundColor: '#' + routedata.route_color }"
+            >
+                {{ routedata.route_short_name }}
+            </div>
+            <!-- Real-Time Clock -->
+            <div class="text-lg font-semibold text-gray-700">
+                {{ currentTime }}
+            </div>
         </div>
         <div class="mt-4">
             <label for="trip-select" class="block text-sm font-medium text-gray-700">Select Trip</label>
