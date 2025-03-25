@@ -50,6 +50,10 @@ Route::get('/test', function () {
     return Inertia::render('Test');
 });
 
+Route::get('/settings', function () {
+    return Inertia::render('settings');
+});
+
 // Route details
 Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id = null) {
     // Fetch the route details
@@ -239,6 +243,76 @@ Route::get('/stoptimes', function () {
         'selectedDepartureTime' => $departure_time
     ]);
 })->name('stoptimes');
+
+Route::get('/search-potential-routes', function (Request $request) {
+    $from = $request->query('from', '');
+    $to = $request->query('to', '');
+
+    // First find all trips that have stops matching the from input
+    $fromTrips = DB::table('stop_times')
+        ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
+        ->when($from, function ($query, $from) {
+            return $query->where('stops.stop_name', 'LIKE', "%{$from}%");
+        })
+        ->pluck('stop_times.trip_id');
+
+    // Then find all trips that have stops matching the to input
+    $toTrips = DB::table('stop_times')
+        ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
+        ->when($to, function ($query, $to) {
+            return $query->where('stops.stop_name', 'LIKE', "%{$to}%");
+        })
+        ->pluck('stop_times.trip_id');
+
+    // Find trips that appear in both lists (have both from and to stops)
+    $matchingTripIds = $fromTrips->intersect($toTrips);
+
+    if ($matchingTripIds->isEmpty()) {
+        return response()->json([]);
+    }
+
+    // Get the route information for these trips
+    $routes = DB::table('trips')
+        ->join('routes', 'trips.route_id', '=', 'routes.route_id')
+        ->whereIn('trips.trip_id', $matchingTripIds)
+        ->select('routes.route_id', 'routes.route_short_name')
+        ->distinct()
+        ->get();
+
+    // For each route, get the first and last stop names
+    $result = [];
+    foreach ($routes as $route) {
+        $trip = DB::table('trips')
+            ->where('route_id', $route->route_id)
+            ->first();
+
+        if ($trip) {
+            $firstStop = DB::table('stop_times')
+                ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
+                ->where('stop_times.trip_id', $trip->trip_id)
+                ->orderBy('stop_times.stop_sequence')
+                ->first(['stops.stop_name']);
+
+            $lastStop = DB::table('stop_times')
+                ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
+                ->where('stop_times.trip_id', $trip->trip_id)
+                ->orderByDesc('stop_times.stop_sequence')
+                ->first(['stops.stop_name']);
+
+            if ($firstStop && $lastStop) {
+                $result[] = [
+                    'route_id' => $route->route_id,
+                    'route_short_name' => $route->route_short_name,
+                    'from_stop' => $firstStop->stop_name,
+                    'to_stop' => $lastStop->stop_name
+                ];
+            }
+        }
+    }
+
+    return response()->json($result);
+});
+
 
 // Import routes
 Route::post('/import/{type}', [GraphicController::class, 'importExcelData']);

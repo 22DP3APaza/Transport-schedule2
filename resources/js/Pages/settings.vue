@@ -2,76 +2,49 @@
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
 
+// Get the page props
 const page = usePage();
-const routes = ref(page.props.routes || []);
-const from = ref('');
-const to = ref('');
+const routedata = ref(page.props.route || {});
+const trips = ref(page.props.trips || []);
+const selectedTrip = ref(page.props.selectedTrip || trips.value[0] || null);
+const stops = ref(page.props.stops || []);
+const stopTimes = ref([]); // Stores stop times for the selected stop
+const selectedStop = ref(null); // Stores the currently selected stop
+const showWorkdays = ref(true); // Default to showing workdays
 
-// Sort the routes
-const sortedRoutes = computed(() =>
-    [...routes.value].sort((a, b) => Number(a.route_short_name) - Number(b.route_short_name))
-);
-
-// Search for the matching route and navigate
-const searchRoute = () => {
-    if (from.value && to.value) {
-        router.post('/search-route', {
-            from: from.value,
-            to: to.value,
-            type: 'trol'
-        });
-    } else {
-        alert("Please enter both 'From' and 'To' values.");
-    }
-};
-
-const isActive = (routeName) => {
-    return page.url.startsWith(routeName);
-};
-
-const routeDetailsUrl = (routeId) => route('route.details', { route_id: routeId });
-
-const getTransportColor = (transportType) => {
-    switch(transportType) {
-        case 'bus': return '#DCA223';
-        case 'trolleybus': return '#008DCA';
-        case 'tram': return '#E6000B';
-        default: return '#3490dc';
-    }
-};
-
-// Theme Management
+// Theme toggle functionality
 const currentTheme = ref('light'); // Default theme is light
-
-// Load the theme from localStorage on initialization
-onMounted(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-        currentTheme.value = savedTheme;
-        document.querySelector('html').setAttribute('data-theme', savedTheme);
-    }
-});
-
 const toggleTheme = () => {
     currentTheme.value = currentTheme.value === 'light' ? 'dark' : 'light';
     document.querySelector('html').setAttribute('data-theme', currentTheme.value);
     localStorage.setItem('theme', currentTheme.value); // Save the theme to local storage
 };
 
-// Language Management
+// Language selection functionality
 const currentLanguage = ref('en'); // Default language is English
 const changeLanguage = (language) => {
     currentLanguage.value = language;
     console.log(`Language changed to: ${language}`);
     // Here you can trigger an API call or update the app's language dynamically
 };
+
+// Function to go back
+const goBack = () => window.history.back();
+
+// Apply the saved theme on component mount
+onMounted(() => {
+    const savedTheme = localStorage.getItem('theme') || 'light'; // Get the saved theme from local storage
+    currentTheme.value = savedTheme;
+    document.querySelector('html').setAttribute('data-theme', savedTheme);
+});
 </script>
 
 <template>
-    <Head title="Trolleybus" />
+    <Head :title="routedata.route_short_name" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="icon" type="image/png" href="/images/logo.webp">
 
+    <!-- Header Section -->
     <header class="navbar bg-base-100">
         <div class="navbar-start">
             <a href="/">
@@ -81,20 +54,13 @@ const changeLanguage = (language) => {
             </a>
         </div>
         <div class="navbar-center">
-            <div class="navbar bg-base-100">
-                <a href="/bus" :class="['btn btn-ghost text-xl', isActive('/bus') ? 'text-white' : '']" :style="isActive('/bus') ? { backgroundColor: getTransportColor('bus') } : {}">Bus</a>
-            </div>
-            <div class="navbar bg-base-100">
-                <a href="/trolleybus" :class="['btn btn-ghost text-xl', isActive('/trolleybus') ? 'text-white' : '']" :style="isActive('/trolleybus') ? { backgroundColor: getTransportColor('trolleybus') } : {}">Trolleybus</a>
-            </div>
-            <div class="navbar bg-base-100">
-                <a href="/tram" :class="['btn btn-ghost text-xl', isActive('/tram') ? 'text-white' : '']" :style="isActive('/tram') ? { backgroundColor: getTransportColor('tram') } : {}">Tram</a>
-            </div>
-            <div class="navbar bg-base-100">
-                <a href="/train" :class="['btn btn-ghost text-xl', isActive('/train') ? 'bg-blue-500 text-white' : '']">Train</a>
-            </div>
+            <div class="navbar bg-base-100"><a href="/bus" class="btn btn-ghost text-xl">Bus</a></div>
+            <div class="navbar bg-base-100"><a href="/trolleybus" class="btn btn-ghost text-xl">Trolleybus</a></div>
+            <div class="navbar bg-base-100"><a href="/tram" class="btn btn-ghost text-xl">Tram</a></div>
+            <div class="navbar bg-base-100"><a href="/train" class="btn btn-ghost text-xl">Train</a></div>
         </div>
         <div class="navbar-end">
+            <!-- Language Selection Dropdown -->
             <div class="dropdown dropdown-end mr-2">
                 <label tabindex="0" class="btn btn-ghost">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
@@ -110,6 +76,7 @@ const changeLanguage = (language) => {
                     </li>
                 </ul>
             </div>
+
             <!-- Theme Toggle Button -->
             <button class="btn btn-ghost" @click="toggleTheme">
                 <svg v-if="currentTheme === 'light'" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
@@ -124,7 +91,7 @@ const changeLanguage = (language) => {
                 <button tabindex="0" role="button" class="btn btn-square btn-ghost">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block h-5 w-5 stroke-current">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                              d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z">
+                              d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 12a1 1 0 11-2 0 1 1 0 012 0z">
                         </path>
                     </svg>
                 </button>
@@ -142,31 +109,4 @@ const changeLanguage = (language) => {
             </div>
         </div>
     </header>
-
-    <div class="middle" style="display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px;">
-        <h1 style="font-size: 2em; font-weight: bold;">Publisko transportu saraksti</h1>
-
-        <!-- From and To Input Fields -->
-        <input type="text" v-model="from" placeholder="From" class="input input-ghost w-full max-w-xs" style="border-bottom: 2px solid black;" />
-        <input type="text" v-model="to" placeholder="To" class="input input-ghost w-full max-w-xs" style="border-bottom: 2px solid black;" />
-
-        <!-- Search Button -->
-        <button @click="searchRoute" class="btn btn-primary mt-4">Search</button>
-
-        <!-- Sorted Routes Buttons -->
-        <div class="container w-full max-w-xl mt-6 flex flex-wrap gap-2 justify-center">
-            <template v-if="sortedRoutes.length">
-                <button
-                    v-for="route in sortedRoutes"
-                    :key="route.route_id"
-                    @click="() => router.visit(routeDetailsUrl(route.route_id))"
-                    :title="route.route_long_name"
-                    class="btn btn-square w-10 h-10 flex items-center justify-center text-white hover:brightness-90 transition rounded-md shadow text-sm font-bold"
-                    :style="{ backgroundColor: route.route_color ? `#${route.route_color}` : '#3490dc' }">
-                    {{ route.route_short_name }}
-                </button>
-            </template>
-            <p v-else class="text-gray-500">No routes available.</p>
-        </div>
-    </div>
 </template>

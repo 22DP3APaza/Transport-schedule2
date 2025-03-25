@@ -4,7 +4,7 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 </script>
 
 <template>
-    <Head title="Home" />
+    <Head title="Train" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="icon" type="image/png" href="/images/logo.webp">
 <header class="navbar bg-base-100">
