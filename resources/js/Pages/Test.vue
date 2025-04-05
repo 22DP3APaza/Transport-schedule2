@@ -26,10 +26,39 @@
           />
         </div>
 
-        <button :disabled="!file" type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">
-          Upload CSV
+        <button
+          :disabled="!file || loading"
+          type="submit"
+          class="bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          {{ loading ? "Uploading..." : "Upload CSV" }}
         </button>
       </form>
+
+      <!-- Loading Spinner -->
+      <div v-if="loading" class="mt-4 flex items-center space-x-2">
+        <svg
+          class="animate-spin h-5 w-5 text-blue-500"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            class="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="4"
+          ></circle>
+          <path
+            class="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+        <span>Uploading...</span>
+      </div>
 
       <div v-if="message" class="mt-4 text-green-600">{{ message }}</div>
       <div v-if="error" class="mt-4 text-red-600">{{ error }}</div>
@@ -46,6 +75,7 @@
         message: "",
         error: "",
         importType: "shapes", // Default import type
+        loading: false, // New loading state
       };
     },
     methods: {
@@ -57,6 +87,10 @@
           this.error = "Please select a file.";
           return;
         }
+
+        this.loading = true; // Start loading
+        this.message = "";
+        this.error = "";
 
         const formData = new FormData();
         formData.append("import_file", this.file);
@@ -72,11 +106,13 @@
             }
           );
 
-          this.message = response.data.statuss || "File uploaded successfully!";
+          this.message = response.data.status || "File uploaded successfully!";
           this.error = "";
         } catch (err) {
           this.error = "Failed to upload. " + (err.response?.data?.message || err.message);
           this.message = "";
+        } finally {
+          this.loading = false; // Stop loading
         }
       },
     },

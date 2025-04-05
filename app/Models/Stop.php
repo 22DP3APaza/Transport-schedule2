@@ -23,6 +23,8 @@ class Stop extends Model
         'stop_url',
         'location_type',
         'parent_station',
+        'wheelchair_boarding',
+        
 
     ];
 }

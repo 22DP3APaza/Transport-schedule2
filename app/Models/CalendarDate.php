@@ -4,20 +4,20 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-
+use Illuminate\Database\Eloquent\Model as Eloquent;
+use Reedware\LaravelCompositeRelations\HasCompositeRelations;
 class CalendarDate extends Model
 {
-    use HasFactory;
+    use HasCompositeRelations;
+
+    protected $primaryKey = ['service_id', 'date'];
+    public $incrementing = false;
+    protected $keyType = 'array';
 
     
-
     protected $fillable = [
-        'id',
        'date',
        'exception_type',
        'service_id',
     ];
-
-
 }

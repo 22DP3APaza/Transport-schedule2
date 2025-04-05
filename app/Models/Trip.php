@@ -24,6 +24,8 @@ class Trip extends Model
         'block_id',
         'wheelchair_accessible',
         'shape_id',
+        'trip_type',
+        'trip_short_name',
     ];
 
     public function Route(): BelongsTo

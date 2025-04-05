@@ -23,6 +23,7 @@ class Route extends Model
         'route_color',
         'route_text_color',
         'route_sort_order',
+        'min_headway_minutes',
 
     ];
 }
