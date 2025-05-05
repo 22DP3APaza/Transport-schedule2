@@ -1,4 +1,5 @@
 <script setup>
+import { Head, Link } from '@inertiajs/vue3';
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { usePage, router } from '@inertiajs/vue3';
 
@@ -11,7 +12,7 @@ const stops = ref(page.props.stops || []);
 const stopTimes = ref([]); // Stores stop times for the selected stop
 const selectedStop = ref(null); // Stores the currently selected stop
 const showWorkdays = ref(true); // Default to showing workdays
-const currentTime = ref(new Date().toLocaleTimeString()); // Real-time clock
+const currentTime = ref(new Date()); // Store as Date object for easier comparison
 
 // Theme Management
 const currentTheme = ref('light');
@@ -55,6 +56,24 @@ const formatTime = (time) => {
     return time.split(':').slice(0, 2).join(':');
 };
 
+// Check if a time is in the future compared to current time
+const isFutureTime = (timeStr) => {
+    if (!timeStr) return false;
+
+    // Get current hours and minutes
+    const now = currentTime.value;
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+
+    // Parse the time string
+    const [hours, minutes] = timeStr.split(':').map(Number);
+
+    // Compare hours and minutes
+    if (hours > currentHours) return true;
+    if (hours === currentHours && minutes > currentMinutes) return true;
+    return false;
+};
+
 // Fetch stop times for the selected stop
 const fetchStopTimes = async () => {
     if (!selectedStop.value || !routedata.value || !selectedTrip.value) return;
@@ -66,7 +85,8 @@ const fetchStopTimes = async () => {
         const data = await response.json();
         // Update stop times with formatted departure times
         stopTimes.value = data.map(time => ({
-            departure_time: formatTime(time.departure_time)
+            departure_time: formatTime(time.departure_time),
+            isFuture: isFutureTime(formatTime(time.departure_time))
         }));
     } catch (error) {
         console.error('Error fetching stop times:', error);
@@ -114,7 +134,12 @@ const getTransportTypeFromRouteId = (routeId) => {
 
 // Real-time clock functionality
 const updateTime = () => {
-    currentTime.value = new Date().toLocaleTimeString();
+    currentTime.value = new Date();
+    // Update the future status of all times
+    stopTimes.value = stopTimes.value.map(time => ({
+        ...time,
+        isFuture: isFutureTime(time.departure_time)
+    }));
 };
 let timeInterval;
 onMounted(() => {
@@ -128,8 +153,8 @@ onUnmounted(() => {
 <template>
     <Head :title="routedata.route_short_name" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="icon" type="image/png" href="/images/logo.webp">
-
+    <link rel="icon" type="image/png" href="/images/logo.png">
+    
     <!-- Header Section -->
     <header class="navbar bg-base-100">
         <div class="navbar-start">
@@ -246,8 +271,15 @@ onUnmounted(() => {
                 {{ routedata.route_short_name }}
             </div>
             <!-- Real-Time Clock -->
-            <div class="text-lg font-semibold text-gray-700">
-                {{ currentTime }}
+            <div
+                class="text-lg font-semibold"
+                :style="{
+                    color: currentTheme.value === 'dark'
+                    ? getTransportColor(getTransportTypeFromRouteId(routedata.route_id))
+                    : '#FFFF'
+                }"
+>
+            {{ currentTime.toLocaleTimeString() }}
             </div>
         </div>
         <div class="mt-4">
@@ -283,8 +315,9 @@ onUnmounted(() => {
                     v-for="(time, index) in stopTimes"
                     :key="index"
                     class="btn btn-xs border-none bg-transparent hover:bg-primary hover:text-white transition px-2 py-1 relative"
+                    :class="{ 'text-white': time.isFuture, 'text-gray-400': !time.isFuture }"
                     @click="handleTimeClick(time)"
-                    :title="selectedTrip?.trip_id"
+                    :title="selectedStop?.stop_id"
                 >
                     {{ time.departure_time }}
                 </button>
@@ -295,4 +328,3 @@ onUnmounted(() => {
         </div>
     </div>
 </template>
--*/9

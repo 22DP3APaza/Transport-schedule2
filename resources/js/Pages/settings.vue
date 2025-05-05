@@ -42,7 +42,7 @@ onMounted(() => {
 <template>
     <Head :title="routedata.route_short_name" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="icon" type="image/png" href="/images/logo.webp">
+    <link rel="icon" type="image/png" href="/images/logo.png">
 
     <!-- Header Section -->
     <header class="navbar bg-base-100">

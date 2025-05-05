@@ -14,10 +14,12 @@ class CalendarDate extends Model
     public $incrementing = false;
     protected $keyType = 'array';
 
-    
+
     protected $fillable = [
        'date',
        'exception_type',
        'service_id',
     ];
+
+
 }

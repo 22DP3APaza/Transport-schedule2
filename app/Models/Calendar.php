@@ -22,10 +22,8 @@ class Calendar extends Model
         'sunday',
         'start_date',
         'end_date',
-        'servicce_name',
+        'service_name',
     ];
 
-    protected $dates = ['start_date', 'end_date'];
 
-    // If you have relationships, define them here
 }

@@ -13,6 +13,7 @@ use App\Models\Stop;
 use App\Models\StopTime;
 use App\Models\Trip;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 Route::get('/', function () {
     return Inertia::render('home', [
@@ -24,17 +25,27 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('/bus', function () {
-    $routes = ModelRoute::where('route_id', 'LIKE', '%bus%')->get(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
+    $routes = ModelRoute::where('route_id', 'LIKE', '%bus%')
+                       ->where('route_id', 'NOT LIKE', '%_x%') // Ignore "_x" variants
+                       ->where('route_short_name', '!=', '99') // Ignore route 99
+                       ->get(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
+
     return Inertia::render('bus', compact('routes'));
 });
 
 Route::get('/trolleybus', function () {
-    $routes = ModelRoute::where('route_id', 'LIKE', '%trol%')->get(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
+    $routes = ModelRoute::where('route_id', 'LIKE', '%trol%')
+                       ->where('route_short_name', '!=', '99') // Ignore route 99
+                       ->get(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
+
     return Inertia::render('trolleybus', compact('routes'));
 });
 
 Route::get('/tram', function () {
-    $routes = ModelRoute::where('route_id', 'LIKE', '%tram%')->get(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
+    $routes = ModelRoute::where('route_id', 'LIKE', '%tram%')
+                       ->where('route_short_name', '!=', '99') // Ignore route 99
+                       ->get(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
+
     return Inertia::render('tram', compact('routes'));
 });
 
@@ -64,15 +75,37 @@ Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id
     // Fetch all trips for the route
     $trips = Trip::where('route_id', $route_id)->get();
 
-    // Group trips by both trip_headsign and shape_id to ensure uniqueness
-    $groupedTrips = $trips->groupBy(function ($trip) {
-        return $trip->trip_headsign . '|' . $trip->shape_id;
+    // Enhance each trip with first and last stop names
+    $enhancedTrips = $trips->map(function ($trip) {
+        // Get first stop
+        $firstStop = DB::table('stop_times')
+            ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
+            ->where('stop_times.trip_id', $trip->trip_id)
+            ->orderBy('stop_times.stop_sequence')
+            ->value('stops.stop_name');
+
+        // Get last stop
+        $lastStop = DB::table('stop_times')
+            ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
+            ->where('stop_times.trip_id', $trip->trip_id)
+            ->orderByDesc('stop_times.stop_sequence')
+            ->value('stops.stop_name');
+
+        // Set a clean trip name (first → last stop)
+        $trip->full_name = $firstStop . ' → ' . $lastStop;
+
+        return $trip;
+    });
+
+    // Group trips by trip_headsign and full_name (to capture direction)
+    $groupedTrips = $enhancedTrips->groupBy(function ($trip) {
+        return $trip->trip_headsign . '|' . $trip->full_name;
     })->map(function ($group) {
         return $group->first(); // Take the first trip in each group
     });
 
     // Determine the selected trip
-    $trip = $trip_id ? $trips->where('trip_id', $trip_id)->first() : $groupedTrips->first();
+    $trip = $trip_id ? $enhancedTrips->where('trip_id', $trip_id)->first() : $groupedTrips->first();
 
     // Fetch stops for the selected trip
     $stops = $trip ? Stop::join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
@@ -83,7 +116,7 @@ Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id
     // Render the Inertia view with the data
     return Inertia::render('RouteDetails', [
         'route' => $route,
-        'trips' => $groupedTrips->values(), // Pass grouped trips to the frontend
+        'trips' => $groupedTrips->values(),
         'selectedTrip' => $trip,
         'stops' => $stops,
     ]);
@@ -100,77 +133,104 @@ Route::get('/route/details/{route_id}/{trip_id}/stops', function ($route_id, $tr
 
 Route::get('/stop/times/{stop_id}', function ($stop_id) {
     $type = request('type', 'workdays'); // Default to workdays
-    $route_id = request('route_id'); // Get the selected route ID
-    $trip_id = request('trip_id'); // Get the selected trip ID
+    $route_id = request('route_id'); // Required
 
-    if (!$route_id || !$trip_id) {
-        return response()->json(['error' => 'Route ID and Trip ID are required'], 400);
+    if (!$route_id) {
+        return response()->json(['error' => 'Route ID is required'], 400);
     }
 
-    // Get the shape_id for the selected trip
-    $shapeId = DB::table('trips')
-        ->where('trip_id', $trip_id)
-        ->value('shape_id');
+    $today = now()->format('Ymd');
 
-    if (!$shapeId) {
-        return response()->json(['error' => 'No matching shape_id found'], 404);
-    }
+    // === Determine service IDs ===
+    $calendarQuery = DB::table('calendar');
 
-    // Get all trips that share the same shape_id
-    $tripIds = DB::table('trips')
-        ->where('shape_id', $shapeId)
-        ->pluck('trip_id');
-
-    // Get service IDs matching the selected type (workdays or weekends)
-    $query = DB::table('calendar');
-    if ($type === 'workdays') {
-        $query->where('monday', 1)
-              ->where('tuesday', 1)
-              ->where('wednesday', 1)
-              ->where('thursday', 1)
-              ->where('friday', 1);
-    } elseif ($type === 'weekends') {
-        $query->where(function ($query) {
-            $query->where('saturday', 1)
-                  ->orWhere('sunday', 1);
+    if ($type === 'weekends') {
+        $calendarQuery->where(function ($query) {
+            $query->where('saturday', 1)->orWhere('sunday', 1);
         });
     } else {
-        return response()->json(['error' => 'Invalid type specified. Use "workdays" or "weekends".'], 400);
+        $calendarQuery->where('monday', 1)
+            ->where('tuesday', 1)
+            ->where('wednesday', 1)
+            ->where('thursday', 1)
+            ->where('friday', 1);
     }
 
-    $serviceIds = $query->pluck('service_id');
+    $baseServiceIds = $calendarQuery->pluck('service_id');
 
-    // Get the stop sequence for this stop in the given shape_id
-    $stopSequence = DB::table('stop_times')
-        ->whereIn('trip_id', $tripIds)
-        ->where('stop_id', $stop_id)
-        ->value('stop_sequence');
+    $addedServices = DB::table('calendar_dates')
+        ->where('date', $today)
+        ->where('exception_type', 1)
+        ->pluck('service_id');
 
-    if (!$stopSequence) {
-        return response()->json(['error' => 'No matching stop sequence found'], 404);
+    $removedServices = DB::table('calendar_dates')
+        ->where('date', $today)
+        ->where('exception_type', 2)
+        ->pluck('service_id');
+
+    $serviceIds = $baseServiceIds->merge($addedServices)->unique()->diff($removedServices);
+
+    if ($serviceIds->isEmpty()) {
+        return response()->json(['error' => 'No active services found for this day type'], 404);
     }
 
-    // Query stop times for the specific stop sequence within the same shape_id
+    // === Get shape_ids used by this route ===
+    $shapeIds = DB::table('trips')
+        ->where('route_id', $route_id)
+        ->whereIn('service_id', $serviceIds)
+        ->pluck('shape_id')
+        ->unique();
+
+    if ($shapeIds->isEmpty()) {
+        return response()->json(['error' => 'No shape_ids found for this route'], 404);
+    }
+
+    // === Get trip_ids using these shape_ids and services ===
+    $tripIds = DB::table('trips')
+        ->whereIn('shape_id', $shapeIds)
+        ->whereIn('service_id', $serviceIds)
+        ->pluck('trip_id');
+
+    if ($tripIds->isEmpty()) {
+        return response()->json(['error' => 'No trips found for route/shape/service combination'], 404);
+    }
+
+    // === Filter stop_times for this stop and those trip_ids ===
     $stopTimes = DB::table('stop_times')
-        ->join('trips', 'stop_times.trip_id', '=', 'trips.trip_id')
-        ->whereIn('stop_times.trip_id', $tripIds)
-        ->where('trips.route_id', $route_id)
-        ->whereIn('trips.service_id', $serviceIds)
-        ->where('stop_times.stop_sequence', $stopSequence)
-        ->orderBy('stop_times.arrival_time')
-        ->get([
-            'stop_times.trip_id',
-            'stop_times.arrival_time',
-            'stop_times.departure_time',
-            'stop_times.stop_sequence'
-        ]);
+    ->whereIn('trip_id', $tripIds)
+    ->where('stop_id', $stop_id)
+    ->orderBy('departure_time')
+    ->get(['departure_time'])
+    ->map(function ($item) {
+        // Normalize 24:xx:xx to 00:xx:xx
+        if (str_starts_with($item->departure_time, '24:')) {
+            $item->departure_time = preg_replace('/^24:/', '00:', $item->departure_time);
+            $item->was_24 = true; // mark so we can move it to the front
+        } else {
+            $item->was_24 = false;
+        }
+        return $item;
+    })
+    ->unique('departure_time')
+    ->sortBy(function ($item) {
+        return $item->departure_time;
+    })
+    ->sortByDesc('was_24') // put normalized 24:xx:xx (now 00:xx:xx) at the front
+    ->values()
+    ->map(function ($item) {
+        // Return only the departure_time field
+        return ['departure_time' => $item->departure_time];
+    });
+
+
 
     if ($stopTimes->isEmpty()) {
-        return response()->json(['error' => 'No stop times found for this stop sequence'], 404);
+        return response()->json(['error' => 'No stop times found for this stop and route'], 404);
     }
 
     return response()->json($stopTimes);
 })->name('stop.times');
+
 
 
 Route::get('/stoptimes', function () {

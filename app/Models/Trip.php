@@ -11,9 +11,6 @@ class Trip extends Model
 {
     use HasFactory;
 
-    protected $primaryKey = 'trip_id';
-    public $incrementing = false;
-    protected $keyType = 'string';
 
     protected $fillable = [
         'trip_id',
@@ -27,21 +24,5 @@ class Trip extends Model
         'trip_type',
         'trip_short_name',
     ];
-
-    public function Route(): BelongsTo
-    {
-        return $this->belongsTo(Route::class, 'route_id', 'route_id');
-    }
-
-    public function StopTime(): HasMany
-    {
-        return $this->hasMany(StopTime::class, 'trip_id', 'trip_id');
-    }
-
-
-    public function Shape(): HasMany
-    {
-        return $this->hasMany(Shape::class, 'shape_id', 'shape_id');
-    }
 
 }

@@ -10,8 +10,8 @@ class StopTime extends Model
 {
     use HasFactory;
 
+    protected $table = 'stop_times'; 
     protected $fillable = [
-        'id',
         'trip_id',
         'arrival_time',
         'departure_time',
@@ -19,16 +19,7 @@ class StopTime extends Model
         'stop_sequence',
         'pickup_type',
         'drop_off_type',
-
     ];
 
-    public function trip(): BelongsTo
-    {
-        return $this->belongsTo(Trip::class, 'trip_id', 'trip_id');
-    }
 
-    public function stop(): BelongsTo
-    {
-        return $this->belongsTo(Stop::class, 'stop_id', 'stop_id');
-    }
 }

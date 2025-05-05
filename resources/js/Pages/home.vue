@@ -6,7 +6,7 @@ import DropdownLink from '@/Components/DropdownLink.vue';
 <template>
     <Head title="Home" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="icon" type="image/png" href="/images/logo.webp">
+    <link rel="icon" type="image/png" href="/images/logo.png">
 <header class="navbar bg-base-100">
   <div class="navbar-start">
     <a href="/">
