@@ -1,7 +1,9 @@
 <script setup>
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 
+const { t, locale } = useI18n();
 const page = usePage();
 const routes = ref(page.props.routes || []);
 const from = ref('');
@@ -21,7 +23,7 @@ const searchRoute = () => {
             type: 'trol'
         });
     } else {
-        alert("Please enter both 'From' and 'To' values.");
+        alert(t('pleaseEnterValues'));
     }
 };
 
@@ -31,6 +33,7 @@ const isActive = (routeName) => {
 
 const routeDetailsUrl = (routeId) => route('route.details', { route_id: routeId });
 
+// Get color based on transport type
 const getTransportColor = (transportType) => {
     switch(transportType) {
         case 'bus': return '#DCA223';
@@ -41,7 +44,7 @@ const getTransportColor = (transportType) => {
 };
 
 // Theme Management
-const currentTheme = ref('light'); // Default theme is light
+const currentTheme = ref('light');
 
 // Load the theme from localStorage on initialization
 onMounted(() => {
@@ -50,25 +53,29 @@ onMounted(() => {
         currentTheme.value = savedTheme;
         document.querySelector('html').setAttribute('data-theme', savedTheme);
     }
+
+    // Load language preference
+    const savedLanguage = localStorage.getItem('language');
+    if (savedLanguage) {
+        locale.value = savedLanguage;
+    }
 });
 
 const toggleTheme = () => {
     currentTheme.value = currentTheme.value === 'light' ? 'dark' : 'light';
     document.querySelector('html').setAttribute('data-theme', currentTheme.value);
-    localStorage.setItem('theme', currentTheme.value); // Save the theme to local storage
+    localStorage.setItem('theme', currentTheme.value);
 };
 
 // Language Management
-const currentLanguage = ref('en'); // Default language is English
 const changeLanguage = (language) => {
-    currentLanguage.value = language;
-    console.log(`Language changed to: ${language}`);
-    // Here you can trigger an API call or update the app's language dynamically
+    locale.value = language;
+    localStorage.setItem('language', language);
 };
 </script>
 
 <template>
-    <Head title="Trolleybus" />
+    <Head :title="t('trolleybus')" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="icon" type="image/png" href="/images/logo.png">
 
@@ -82,16 +89,27 @@ const changeLanguage = (language) => {
         </div>
         <div class="navbar-center">
             <div class="navbar bg-base-100">
-                <a href="/bus" :class="['btn btn-ghost text-xl', isActive('/bus') ? 'text-white' : '']" :style="isActive('/bus') ? { backgroundColor: getTransportColor('bus') } : {}">Bus</a>
+                <a href="/bus" :class="['btn btn-ghost text-xl', isActive('/bus') ? 'text-white' : '']"
+                   :style="isActive('/bus') ? { backgroundColor: getTransportColor('bus') } : {}">
+                    {{ t('bus') }}
+                </a>
             </div>
             <div class="navbar bg-base-100">
-                <a href="/trolleybus" :class="['btn btn-ghost text-xl', isActive('/trolleybus') ? 'text-white' : '']" :style="isActive('/trolleybus') ? { backgroundColor: getTransportColor('trolleybus') } : {}">Trolleybus</a>
+                <a href="/trolleybus" :class="['btn btn-ghost text-xl', isActive('/trolleybus') ? 'text-white' : '']"
+                   :style="isActive('/trolleybus') ? { backgroundColor: getTransportColor('trolleybus') } : {}">
+                    {{ t('trolleybus') }}
+                </a>
             </div>
             <div class="navbar bg-base-100">
-                <a href="/tram" :class="['btn btn-ghost text-xl', isActive('/tram') ? 'text-white' : '']" :style="isActive('/tram') ? { backgroundColor: getTransportColor('tram') } : {}">Tram</a>
+                <a href="/tram" :class="['btn btn-ghost text-xl', isActive('/tram') ? 'text-white' : '']"
+                   :style="isActive('/tram') ? { backgroundColor: getTransportColor('tram') } : {}">
+                    {{ t('tram') }}
+                </a>
             </div>
             <div class="navbar bg-base-100">
-                <a href="/train" :class="['btn btn-ghost text-xl', isActive('/train') ? 'bg-blue-500 text-white' : '']">Train</a>
+                <a href="/train" :class="['btn btn-ghost text-xl', isActive('/train') ? 'bg-blue-500 text-white' : '']">
+                    {{ t('train') }}
+                </a>
             </div>
         </div>
         <div class="navbar-end">
@@ -103,14 +121,13 @@ const changeLanguage = (language) => {
                 </label>
                 <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[1] w-32 p-2 shadow">
                     <li @click="changeLanguage('en')">
-                        <a :class="{ 'bg-primary text-white': currentLanguage === 'en' }">English</a>
+                        <a :class="{ 'bg-primary text-white': locale === 'en' }">{{ t('english') }}</a>
                     </li>
                     <li @click="changeLanguage('lv')">
-                        <a :class="{ 'bg-primary text-white': currentLanguage === 'lv' }">Latvian</a>
+                        <a :class="{ 'bg-primary text-white': locale === 'lv' }">{{ t('latvian') }}</a>
                     </li>
                 </ul>
             </div>
-            <!-- Theme Toggle Button -->
             <button class="btn btn-ghost" @click="toggleTheme">
                 <svg v-if="currentTheme === 'light'" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
@@ -130,13 +147,13 @@ const changeLanguage = (language) => {
                 </button>
                 <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-[1] w-52 p-2 shadow">
                     <li v-if="!$page.props.auth.user">
-                        <a :href="route('login')">Login</a>
+                        <a :href="route('login')">{{ t('login') }}</a>
                     </li>
                     <li>
-                        <Link href="/settings">Settings</Link>
+                        <Link href="/settings">{{ t('settings') }}</Link>
                     </li>
                     <li v-if="$page.props.auth.user">
-                        <Link :href="route('logout')" method="post">Log Out</Link>
+                        <Link :href="route('logout')" method="post">{{ t('logout') }}</Link>
                     </li>
                 </ul>
             </div>
@@ -144,16 +161,13 @@ const changeLanguage = (language) => {
     </header>
 
     <div class="middle" style="display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px;">
-        <h1 style="font-size: 2em; font-weight: bold;">Publisko transportu saraksti</h1>
+        <h1 style="font-size: 2em; font-weight: bold;">{{ t('publicTransport') }}</h1>
 
-        <!-- From and To Input Fields -->
-        <input type="text" v-model="from" placeholder="From" class="input input-ghost w-full max-w-xs" style="border-bottom: 2px solid black;" />
-        <input type="text" v-model="to" placeholder="To" class="input input-ghost w-full max-w-xs" style="border-bottom: 2px solid black;" />
+        <input type="text" v-model="from" :placeholder="t('from')" class="input input-ghost w-full max-w-xs" style="border-bottom: 2px solid black;" />
+        <input type="text" v-model="to" :placeholder="t('to')" class="input input-ghost w-full max-w-xs" style="border-bottom: 2px solid black;" />
 
-        <!-- Search Button -->
-        <button @click="searchRoute" class="btn btn-primary mt-4">Search</button>
+        <button @click="searchRoute" class="btn btn-primary mt-4">{{ t('search') }}</button>
 
-        <!-- Sorted Routes Buttons -->
         <div class="container w-full max-w-xl mt-6 flex flex-wrap gap-2 justify-center">
             <template v-if="sortedRoutes.length">
                 <button
@@ -162,11 +176,11 @@ const changeLanguage = (language) => {
                     @click="() => router.visit(routeDetailsUrl(route.route_id))"
                     :title="route.route_long_name"
                     class="btn btn-square w-10 h-10 flex items-center justify-center text-white hover:brightness-90 transition rounded-md shadow text-sm font-bold"
-                    :style="{ backgroundColor: route.route_color ? `#${route.route_color}` : '#3490dc' }">
+                    :style="{ backgroundColor: route.route_color ? `#${route.route_color}` : getTransportColor('trolleybus') }">
                     {{ route.route_short_name }}
                 </button>
             </template>
-            <p v-else class="text-gray-500">No routes available.</p>
+            <p v-else class="text-gray-500">{{ t('noRoutes') }}</p>
         </div>
     </div>
 </template>
