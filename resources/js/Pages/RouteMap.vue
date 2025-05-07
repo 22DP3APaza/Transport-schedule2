@@ -12,11 +12,13 @@ const props = defineProps({
     trip: Object,
     shapePoints: Array,
     stops: Array,
-    allStops: Array // New prop for all GTFS stops
+    allStops: Array
 });
 
 const mapContainer = ref(null);
 const map = ref(null);
+const showAllStops = ref(false); // Changed to false by default
+const allStopsMarkers = ref([]);
 
 // Optional: Filter out Mozilla deprecation warnings
 const originalWarn = console.warn;
@@ -38,6 +40,17 @@ const fixLeafletIcons = () => {
         popupAnchor: [1, -34],
         tooltipAnchor: [16, -28],
         shadowSize: [41, 41]
+    });
+};
+
+const toggleAllStops = () => {
+    showAllStops.value = !showAllStops.value;
+    allStopsMarkers.value.forEach(marker => {
+        if (showAllStops.value) {
+            marker.addTo(map.value);
+        } else {
+            marker.remove();
+        }
     });
 };
 
@@ -82,7 +95,7 @@ onMounted(() => {
     props.stops.forEach(stop => {
         L.marker([stop.stop_lat, stop.stop_lon], { icon: stopIcon })
             .addTo(map.value)
-            .bindPopup(`<strong>${stop.stop_name}</strong><br>Seq: ${stop.stop_sequence}`);
+            .bindPopup(`<strong>${stop.stop_name}</strong><br>${t('stopSequence')}: ${stop.stop_sequence}`);
     });
 
     // Special icon for last stop
@@ -98,7 +111,7 @@ onMounted(() => {
 
         L.marker([lastStop.stop_lat, lastStop.stop_lon], { icon: lastStopIcon })
             .addTo(map.value)
-            .bindPopup(`<strong>${lastStop.stop_name}</strong><br>(Last Stop)`);
+            .bindPopup(`<strong>${lastStop.stop_name}</strong><br>(${t('lastStop')})`);
     }
 
     // Icon for all GTFS stops
@@ -107,20 +120,28 @@ onMounted(() => {
         iconSize: [8, 8],
     });
 
-    // Set of stops that are part of the route (we don't want to duplicate them with marker-icon3.svg)
+    // Set of stops that are part of the route
     const routeStopCoordinates = new Set(
         props.stops.map(stop => `${stop.stop_lat},${stop.stop_lon}`)
     );
+
+    // Clear any existing markers
+    allStopsMarkers.value = [];
 
     // Add all GTFS stops, skipping those already part of the route
     props.allStops.forEach(stop => {
         const stopCoordinates = `${stop.stop_lat},${stop.stop_lon}`;
 
         if (!routeStopCoordinates.has(stopCoordinates)) {
-            L.marker([stop.stop_lat, stop.stop_lon], { icon: allStopsIcon })
-                .addTo(map.value)
+            const marker = L.marker([stop.stop_lat, stop.stop_lon], { icon: allStopsIcon })
                 .bindPopup(`<strong>${stop.stop_name}</strong>`);
 
+            // Only add to map if showAllStops is true (false by default)
+            if (showAllStops.value) {
+                marker.addTo(map.value);
+            }
+
+            allStopsMarkers.value.push(marker);
         }
     });
 
@@ -148,9 +169,28 @@ onMounted(() => {
                     href="#"
                     @click.prevent="$inertia.visit(`/route/details/${route.route_id}/${trip.trip_id}`)"
                     class="block text-center w-16 h-16 leading-[4rem] text-2xl"
-                    title="Back"
+                    :title="t('back')"
                 >
                     ←
+                </a>
+            </div>
+        </div>
+
+        <!-- Toggle All Stops button -->
+        <div class="leaflet-top leaflet-left" style="top: 70px;">
+            <div class="leaflet-control leaflet-bar">
+                <a
+                    href="#"
+                    @click.prevent="toggleAllStops"
+                    class="block w-16 h-16 bg-white flex items-center justify-center"
+                    :title="showAllStops ? t('hideAdditionalStops') : t('showAdditionalStops')"
+                >
+                    <img
+                        src="/images/markers/marker-icon4.svg"
+                        :alt="t('toggleStops')"
+                        class="w-6 h-6"
+                        :class="{ 'opacity-50': !showAllStops }"
+                    />
                 </a>
             </div>
         </div>

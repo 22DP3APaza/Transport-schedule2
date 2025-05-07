@@ -91,7 +91,13 @@ const messages = {
     //maps
 
     viewOnMap: "View on Map",
-    viewRouteOnMap: "View this route on Google Maps"
+    viewRouteOnMap: "View this route on Google Maps",
+    stopSequence: 'Sequence',
+    lastStop: 'Last Stop',
+    hideAdditionalStops: 'Hide additional stops',
+    showAdditionalStops: 'Show additional stops',
+    toggleStops: 'Toggle stops',
+    back: 'Back'
   },
   lv: {
     // Transport types
@@ -184,6 +190,12 @@ const messages = {
 
     viewOnMap: "Skatīt kartē",
     viewRouteOnMap: "Skatīt šo maršrutu Google Maps",
+    stopSequence: 'Secība',
+    lastStop: 'Pēdējā pietura',
+    hideAdditionalStops: 'Paslēpt papildu pieturas',
+    showAdditionalStops: 'Rādīt papildu pieturas',
+    toggleStops: 'Pārslēgt pieturas',
+    back: 'Atpakaļ',
   }
 }
 
