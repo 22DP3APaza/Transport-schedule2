@@ -373,7 +373,7 @@ Route::get('/search-potential-routes', function (Request $request) {
     return response()->json($result);
 });
 
-// Route Map View
+
 Route::get('/route/map/{route_id}/{trip_id}', function ($route_id, $trip_id) {
     // Get route info
     $route = ModelRoute::where('route_id', $route_id)->firstOrFail([
@@ -397,13 +397,18 @@ Route::get('/route/map/{route_id}/{trip_id}', function ($route_id, $trip_id) {
         ->orderBy('stop_times.stop_sequence')
         ->get(['stops.stop_id', 'stops.stop_name', 'stops.stop_lat', 'stops.stop_lon', 'stop_times.stop_sequence']);
 
+    // ✅ Get all GTFS stops
+    $allStops = Stop::orderBy('stop_name')->get(['stop_id', 'stop_name', 'stop_lat', 'stop_lon']);
+
     return Inertia::render('RouteMap', [
         'route' => $route,
         'trip' => $trip,
         'shapePoints' => $shapePoints,
-        'stops' => $stops
+        'stops' => $stops,
+        'allStops' => $allStops // ✅ Pass to Vue
     ]);
 })->name('route.map');
+
 
 // Import routes
 Route::post('/import/{type}', [GraphicController::class, 'importExcelData']);

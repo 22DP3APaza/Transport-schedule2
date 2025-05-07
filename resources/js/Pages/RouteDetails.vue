@@ -350,7 +350,7 @@ onUnmounted(() => {
                 :aria-label="t('selectTrip')"
             >
                 <option v-for="trip in trips" :key="trip.trip_id" :value="trip">
-                    {{ trip.trip_headsign }} ({{ t('shapeId') }}: {{ trip.shape_id }})
+                    {{ trip.trip_headsign }} ({{ ('shapeId') }}: {{ trip.shape_id }})
                 </option>
             </select>
         </div>
