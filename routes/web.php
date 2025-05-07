@@ -14,7 +14,9 @@ use App\Models\StopTime;
 use App\Models\Trip;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Request;
 
+// Home Page
 Route::get('/', function () {
     return Inertia::render('home', [
         'canLogin' => Route::has('login'),
@@ -24,48 +26,52 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
+// Route: Bus
 Route::get('/bus', function () {
     $routes = ModelRoute::where('route_id', 'LIKE', '%bus%')
                        ->where('route_id', 'NOT LIKE', '%_x%') // Ignore "_x" variants
                        ->where('route_short_name', '!=', '99') // Ignore route 99
                        ->get(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
-
     return Inertia::render('bus', compact('routes'));
 });
 
+// Route: Trolleybus
 Route::get('/trolleybus', function () {
     $routes = ModelRoute::where('route_id', 'LIKE', '%trol%')
                        ->where('route_short_name', '!=', '99') // Ignore route 99
                        ->get(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
-
     return Inertia::render('trolleybus', compact('routes'));
 });
 
+// Route: Tram
 Route::get('/tram', function () {
     $routes = ModelRoute::where('route_id', 'LIKE', '%tram%')
                        ->where('route_short_name', '!=', '99') // Ignore route 99
                        ->get(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
-
     return Inertia::render('tram', compact('routes'));
 });
 
+// Route: Train (stub)
 Route::get('/train', function () {
     return Inertia::render('train');
 });
 
+// Login Page
 Route::get('/login', function () {
     return Inertia::render('login');
 });
 
+// Test Page
 Route::get('/test', function () {
     return Inertia::render('Test');
 });
 
+// Settings Page
 Route::get('/settings', function () {
     return Inertia::render('settings');
 });
 
-// Route details
+// Route Details Page
 Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id = null) {
     // Fetch the route details
     $route = ModelRoute::where('route_id', $route_id)->firstOrFail([
@@ -93,7 +99,6 @@ Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id
 
         // Set a clean trip name (first → last stop)
         $trip->full_name = $firstStop . ' → ' . $lastStop;
-
         return $trip;
     });
 
@@ -122,6 +127,7 @@ Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id
     ]);
 })->name('route.details');
 
+// Get Stops for a Specific Trip
 Route::get('/route/details/{route_id}/{trip_id}/stops', function ($route_id, $trip_id) {
     $stops = Stop::join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
         ->where('stop_times.trip_id', $trip_id)
@@ -131,6 +137,7 @@ Route::get('/route/details/{route_id}/{trip_id}/stops', function ($route_id, $tr
     return response()->json($stops);
 })->name('route.trip.stops');
 
+// Get Stop Times for a Specific Stop and Route
 Route::get('/stop/times/{stop_id}', function ($stop_id) {
     $type = request('type', 'workdays'); // Default to workdays
     $route_id = request('route_id'); // Required
@@ -157,12 +164,10 @@ Route::get('/stop/times/{stop_id}', function ($stop_id) {
     }
 
     $baseServiceIds = $calendarQuery->pluck('service_id');
-
     $addedServices = DB::table('calendar_dates')
         ->where('date', $today)
         ->where('exception_type', 1)
         ->pluck('service_id');
-
     $removedServices = DB::table('calendar_dates')
         ->where('date', $today)
         ->where('exception_type', 2)
@@ -197,32 +202,30 @@ Route::get('/stop/times/{stop_id}', function ($stop_id) {
 
     // === Filter stop_times for this stop and those trip_ids ===
     $stopTimes = DB::table('stop_times')
-    ->whereIn('trip_id', $tripIds)
-    ->where('stop_id', $stop_id)
-    ->orderBy('departure_time')
-    ->get(['departure_time'])
-    ->map(function ($item) {
-        // Normalize 24:xx:xx to 00:xx:xx
-        if (str_starts_with($item->departure_time, '24:')) {
-            $item->departure_time = preg_replace('/^24:/', '00:', $item->departure_time);
-            $item->was_24 = true; // mark so we can move it to the front
-        } else {
-            $item->was_24 = false;
-        }
-        return $item;
-    })
-    ->unique('departure_time')
-    ->sortBy(function ($item) {
-        return $item->departure_time;
-    })
-    ->sortByDesc('was_24') // put normalized 24:xx:xx (now 00:xx:xx) at the front
-    ->values()
-    ->map(function ($item) {
-        // Return only the departure_time field
-        return ['departure_time' => $item->departure_time];
-    });
-
-
+        ->whereIn('trip_id', $tripIds)
+        ->where('stop_id', $stop_id)
+        ->orderBy('departure_time')
+        ->get(['departure_time'])
+        ->map(function ($item) {
+            // Normalize 24:xx:xx to 00:xx:xx
+            if (str_starts_with($item->departure_time, '24:')) {
+                $item->departure_time = preg_replace('/^24:/', '00:', $item->departure_time);
+                $item->was_24 = true; // mark so we can move it to the front
+            } else {
+                $item->was_24 = false;
+            }
+            return $item;
+        })
+        ->unique('departure_time')
+        ->sortBy(function ($item) {
+            return $item->departure_time;
+        })
+        ->sortByDesc('was_24') // put normalized 24:xx:xx (now 00:xx:xx) at the front
+        ->values()
+        ->map(function ($item) {
+            // Return only the departure_time field
+            return ['departure_time' => $item->departure_time];
+        });
 
     if ($stopTimes->isEmpty()) {
         return response()->json(['error' => 'No stop times found for this stop and route'], 404);
@@ -231,8 +234,7 @@ Route::get('/stop/times/{stop_id}', function ($stop_id) {
     return response()->json($stopTimes);
 })->name('stop.times');
 
-
-
+// Get Stop Times by Departure Time
 Route::get('/stoptimes', function () {
     $trip_id = request('trip_id');
     $stop_id = request('stop_id');
@@ -271,9 +273,9 @@ Route::get('/stoptimes', function () {
         ->where('departure_time', $formattedTime)
         ->whereIn('trip_id', function($query) use ($tripInfo) {
             $query->select('trip_id')
-                ->from('trips')
-                ->where('shape_id', $tripInfo->shape_id)
-                ->where('route_id', $tripInfo->route_id);
+                  ->from('trips')
+                  ->where('shape_id', $tripInfo->shape_id)
+                  ->where('route_id', $tripInfo->route_id);
         })
         ->pluck('trip_id');
 
@@ -304,6 +306,7 @@ Route::get('/stoptimes', function () {
     ]);
 })->name('stoptimes');
 
+// Search Potential Routes Between Two Stops
 Route::get('/search-potential-routes', function (Request $request) {
     $from = $request->query('from', '');
     $to = $request->query('to', '');
@@ -345,20 +348,17 @@ Route::get('/search-potential-routes', function (Request $request) {
         $trip = DB::table('trips')
             ->where('route_id', $route->route_id)
             ->first();
-
         if ($trip) {
             $firstStop = DB::table('stop_times')
                 ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
                 ->where('stop_times.trip_id', $trip->trip_id)
                 ->orderBy('stop_times.stop_sequence')
                 ->first(['stops.stop_name']);
-
             $lastStop = DB::table('stop_times')
                 ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
                 ->where('stop_times.trip_id', $trip->trip_id)
                 ->orderByDesc('stop_times.stop_sequence')
                 ->first(['stops.stop_name']);
-
             if ($firstStop && $lastStop) {
                 $result[] = [
                     'route_id' => $route->route_id,
@@ -373,19 +373,52 @@ Route::get('/search-potential-routes', function (Request $request) {
     return response()->json($result);
 });
 
+// Route Map View
+Route::get('/route/map/{route_id}/{trip_id}', function ($route_id, $trip_id) {
+    // Get route info
+    $route = ModelRoute::where('route_id', $route_id)->firstOrFail([
+        'route_id', 'route_short_name', 'route_long_name', 'route_color'
+    ]);
+
+    // Get trip info to find the shape
+    $trip = Trip::where('trip_id', $trip_id)->firstOrFail([
+        'trip_id', 'shape_id', 'trip_headsign'
+    ]);
+
+    // Get all shape points for this route
+    $shapePoints = DB::table('shapes')
+        ->where('shape_id', $trip->shape_id)
+        ->orderBy('shape_pt_sequence')
+        ->get(['shape_pt_lat', 'shape_pt_lon', 'shape_pt_sequence']);
+
+    // Get all stops with their coordinates for this trip
+    $stops = Stop::join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
+        ->where('stop_times.trip_id', $trip_id)
+        ->orderBy('stop_times.stop_sequence')
+        ->get(['stops.stop_id', 'stops.stop_name', 'stops.stop_lat', 'stops.stop_lon', 'stop_times.stop_sequence']);
+
+    return Inertia::render('RouteMap', [
+        'route' => $route,
+        'trip' => $trip,
+        'shapePoints' => $shapePoints,
+        'stops' => $stops
+    ]);
+})->name('route.map');
 
 // Import routes
 Route::post('/import/{type}', [GraphicController::class, 'importExcelData']);
 
+// Authenticated Routes
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
     Route::post('/register', [RegisteredUserController::class, 'store'])->name('register.store');
 });
 
-// Importing GTFS data
+// GTFS Data Import Routes
 Route::post('/import-shapes', [GraphicController::class, 'importShapes'])->name('import.shapes');
 Route::post('/import-calendar', [GraphicController::class, 'importCalendar'])->name('import.calendar');
 Route::post('/import-stops', [GraphicController::class, 'importStops'])->name('import.stops');
@@ -396,5 +429,6 @@ Route::post('/import-stop-times', [GraphicController::class, 'importStopTimes'])
 
 require __DIR__.'/auth.php';
 
+// Additional Controllers
 Route::post('/search-route', [RouteController::class, 'searchRoute'])->name('searchRoute');
 Route::get('/route/{id}', [RouteController::class, 'show'])->name('route.show');

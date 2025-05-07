@@ -156,6 +156,14 @@ const handleTimeClick = (time) => {
     router.visit(`/stoptimes?trip_id=${selectedTrip.value.trip_id}&stop_id=${selectedStop.value.stop_id}&departure_time=${time.departure_time}`);
 };
 
+const viewRouteOnMap = () => {
+    if (!selectedTrip.value || !selectedTrip.value.trip_id) {
+        console.error(t('missingDataForMapView'));
+        return;
+    }
+    router.visit(`/route/map/${routedata.value.route_id}/${selectedTrip.value.trip_id}`);
+};
+
 const getTransportColor = (transportType) => {
     switch (transportType) {
         case 'bus': return '#DCA223';
@@ -204,7 +212,7 @@ onUnmounted(() => {
 <template>
     <Head :title="routedata.route_short_name" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="icon" type="image/png" href="/images/logo.png">
+    <link rel="icon" type="image/png" href="/images/logo.webp">
 
     <header class="navbar bg-base-100">
         <div class="navbar-start">
@@ -311,7 +319,9 @@ onUnmounted(() => {
     </header>
 
     <div class="container mx-auto mt-6 p-4">
-        <button @click="goBack" class="btn btn-outline mb-4">← {{ t('back') }}</button>
+        <button @click="goBack" class="btn btn-outline mb-4 border-base-content/20 hover:border-base-content/40">
+            ← {{ t('back') }}
+        </button>
         <div class="flex items-center space-x-4">
             <div
                 class="btn btn-square w-10 h-10 flex items-center justify-center text-white hover:brightness-90 transition rounded-md shadow text-sm font-bold"
@@ -320,37 +330,36 @@ onUnmounted(() => {
             >
                 {{ routedata.route_short_name }}
             </div>
-            <div
-                class="text-lg font-semibold"
-                :style="{
-                    color: currentTheme.value === 'dark'
-                    ? getTransportColor(getTransportTypeFromRouteId(routedata.route_id))
-                    : '#FFFF'
-                }"
-                :title="t('currentTime')"
+            <button
+                @click="viewRouteOnMap"
+                class="btn btn-square btn-ghost w-10 h-10 flex items-center justify-center"
+                :title="t('viewRouteOnMap')"
             >
+                <img src="/images/map-location-pin-svgrepo-com.svg" class="w-6 h-6" :alt="t('viewRouteOnMap')">
+            </button>
+            <div class="text-lg font-semibold text-base-content">
                 {{ currentTime.toLocaleTimeString() }}
             </div>
         </div>
         <div class="mt-4">
-            <label for="trip-select" class="block text-sm font-medium text-gray-700">{{ t('selectTrip') }}</label>
+            <label for="trip-select" class="block text-sm font-medium text-base-content">{{ t('selectTrip') }}</label>
             <select
                 id="trip-select"
                 v-model="selectedTrip"
-                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-base-content/20 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md bg-gray-100 dark:bg-gray-700 text-base-content"
                 :aria-label="t('selectTrip')"
             >
                 <option v-for="trip in trips" :key="trip.trip_id" :value="trip">
-                    {{ trip.trip_headsign }} ({{ ('shapeId') }}: {{ trip.shape_id }})
+                    {{ trip.trip_headsign }} ({{ t('shapeId') }}: {{ trip.shape_id }})
                 </option>
             </select>
         </div>
         <div class="mt-4">
-            <label for="stop-select" class="block text-sm font-medium text-gray-700">{{ t('selectStop') }}</label>
+            <label for="stop-select" class="block text-sm font-medium text-base-content">{{ t('selectStop') }}</label>
             <select
                 id="stop-select"
                 v-model="selectedStop"
-                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-base-content/20 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md bg-gray-100 dark:bg-gray-700 text-base-content"
                 :aria-label="t('selectStop')"
             >
                 <option v-for="stop in stops" :key="stop.stop_id" :value="stop">
@@ -359,14 +368,14 @@ onUnmounted(() => {
             </select>
         </div>
         <div v-if="selectedStop" class="mt-6">
-            <h2 class="text-lg font-semibold">{{ t('stopTimesFor') }} {{ selectedStop.stop_name }}</h2>
+            <h2 class="text-lg font-semibold text-base-content">{{ t('stopTimesFor') }} {{ selectedStop.stop_name }}</h2>
             <div class="flex items-center mb-4" v-if="hasWorkdaysData || hasWeekendsData">
-                <label class="mr-2">{{ t('show') }}:</label>
+                <label class="mr-2 text-base-content">{{ t('show') }}:</label>
                 <button
                     v-if="hasWorkdaysData"
                     @click="showWorkdays = true; stopTimes = stopTimesData.workdays"
                     :class="{'btn-primary': showWorkdays, 'btn-outline': !showWorkdays}"
-                    class="btn btn-sm mr-2"
+                    class="btn btn-sm mr-2 border-base-content/20 hover:border-base-content/40"
                     :aria-label="t('showWorkdays')"
                 >
                     {{ t('workdays') }}
@@ -375,7 +384,7 @@ onUnmounted(() => {
                     v-if="hasWeekendsData"
                     @click="showWorkdays = false; stopTimes = stopTimesData.weekends"
                     :class="{'btn-primary': !showWorkdays, 'btn-outline': showWorkdays}"
-                    class="btn btn-sm"
+                    class="btn btn-sm border-base-content/20 hover:border-base-content/40"
                     :aria-label="t('showWeekends')"
                 >
                     {{ t('weekends') }}
@@ -385,8 +394,11 @@ onUnmounted(() => {
                 <button
                     v-for="(time, index) in stopTimes"
                     :key="index"
-                    class="btn btn-xs border-none bg-transparent hover:bg-primary hover:text-white transition px-2 py-1 relative"
-                    :class="{ 'text-white': time.isFuture, 'text-gray-400': !time.isFuture }"
+                    class="btn btn-xs border-none bg-transparent hover:bg-primary hover:text-primary-content transition px-2 py-1 relative"
+                    :class="{
+                        'text-base-content': time.isFuture,
+                        'text-base-content/70': !time.isFuture
+                    }"
                     @click="handleTimeClick(time)"
                     :title="t('departureTime')"
                     :aria-label="t('departureAt', { time: time.departure_time })"
@@ -394,7 +406,7 @@ onUnmounted(() => {
                     {{ time.departure_time }}
                 </button>
             </div>
-            <div v-else class="text-gray-500">
+            <div v-else class="text-base-content/70">
                 <p>{{ t('noStopTimesAvailable') }}</p>
             </div>
         </div>
