@@ -182,7 +182,7 @@ onMounted(() => {
                 <a
                     href="#"
                     @click.prevent="toggleAllStops"
-                    class="block w-16 h-16 bg-white flex items-center justify-center"
+                    class=" w-16 h-16 bg-white flex items-center justify-center"
                     :title="showAllStops ? t('hideAdditionalStops') : t('showAdditionalStops')"
                 >
                     <img
