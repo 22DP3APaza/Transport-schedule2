@@ -30,7 +30,6 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
-        'admin',
     ];
 
     /**
@@ -43,6 +42,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'admin' => 'boolean',
         ];
     }
 }

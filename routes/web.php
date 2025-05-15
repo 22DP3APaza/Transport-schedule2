@@ -7,6 +7,8 @@ use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\CSVImportController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\GtfsStopController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Models\Route as ModelRoute;
 use App\Models\Stop;
@@ -364,6 +366,13 @@ Route::get('/api/stops', function () {
                 ->get();
 
     return response()->json($stops);
+});
+
+
+Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
+    // Users
+    Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
+
 });
 
 // GTFS Data Import Routes

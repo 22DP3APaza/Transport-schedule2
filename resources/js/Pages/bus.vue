@@ -255,8 +255,11 @@ const changeLanguage = (language) => {
             <li v-if="!$page.props.auth.user">
               <a :href="route('login')">{{ t('login') }}</a>
             </li>
-            <li>
+            <li v-if="$page.props.auth.user">
               <Link href="/settings">{{ t('settings') }}</Link>
+            </li>
+            <li v-if="$page.props.auth.user?.admin">
+              <Link href="/admin/users">{{ t('adminPanel') }}</Link>
             </li>
             <li v-if="$page.props.auth.user">
               <Link :href="route('logout')" method="post">{{ t('logout') }}</Link>

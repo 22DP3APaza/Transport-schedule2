@@ -97,7 +97,19 @@ const messages = {
     hideAdditionalStops: 'Hide additional stops',
     showAdditionalStops: 'Show additional stops',
     toggleStops: 'Toggle stops',
-    back: 'Back'
+    back: 'Back',
+
+    // Admin - Users
+    userManagement: 'User Management',
+    id: 'ID',
+    username: 'Username',
+    email: 'Email',
+    admin: 'Admin',
+    actions: 'Actions',
+    deleteUser: 'Delete',
+    confirmDeleteUser: 'Are you sure you want to delete this user?',
+    toggleAdminStatus: 'Toggle admin status',
+    adminUsersTitle: 'Admin - Users',
   },
   lv: {
     // Transport types
@@ -196,6 +208,19 @@ const messages = {
     showAdditionalStops: 'Rādīt papildu pieturas',
     toggleStops: 'Pārslēgt pieturas',
     back: 'Atpakaļ',
+
+    // Admin - Users
+    userManagement: 'Lietotāju pārvaldība',
+    id: 'ID',
+    username: 'Lietotājvārds',
+    email: 'E-pasts',
+    admin: 'Administrators',
+    actions: 'Darbības',
+    deleteUser: 'Dzēst',
+    confirmDeleteUser: 'Vai tiešām vēlaties dzēst šo lietotāju?',
+    toggleAdminStatus: 'Pārslēgt administratora statusu',
+    adminUsersTitle: 'Administrēšana - Lietotāji',
+    
   }
 }
 
