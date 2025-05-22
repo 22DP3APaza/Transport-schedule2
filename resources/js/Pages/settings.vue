@@ -2,6 +2,45 @@
 import { Head, Link, usePage } from '@inertiajs/vue3';
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { router, useForm } from '@inertiajs/vue3';
+
+const user = usePage().props.auth.user;
+
+const passwordForm = useForm({
+  current_password: '',
+  password: '',
+  password_confirmation: '',
+});
+
+const updatePassword = () => {
+  passwordForm.put(route('profile.updatePassword'), {
+    preserveScroll: true,
+    onSuccess: () => {
+      passwordForm.reset();
+      alert(t('passwordUpdated'));
+    },
+  });
+};
+
+const deleteForm = useForm({
+  password: '',
+});
+
+const deleteProfile = () => {
+  deleteForm.clearErrors();
+
+  if (!deleteForm.password) {
+    deleteForm.setError('password', t('passwordRequired'));
+    return;
+  }
+
+  deleteForm.delete(route('profile.destroy'), {
+    preserveScroll: true,
+    onSuccess: () => {
+      alert(t('profileDeleted'));
+    },
+  });
+};
 
 const { t, locale } = useI18n();
 const page = usePage();
@@ -137,5 +176,63 @@ const isActive = (routeName) => {
         </div>
       </div>
     </header>
+    <section class="p-6 max-w-xl mx-auto space-y-6">
+      <h2 class="text-2xl font-bold">{{ t('profileSettings') }}</h2>
 
+      <!-- User Information -->
+      <div>
+        <p class="text-sm text-gray-500 mb-1">
+          {{ t('username') }}: <strong>{{ user?.username }}</strong>
+        </p>
+        <p class="text-sm text-gray-500 mb-4">
+          {{ t('email') }}: <strong>{{ user?.email }}</strong>
+        </p>
+      </div>
+
+      <!-- Update Password -->
+      <h2 class="text-2xl font-bold">{{ t('UpdatePassword') }}</h2>
+      <form @submit.prevent="updatePassword" class="mt-6">
+        <!-- Current password -->
+        <label class="block mb-2">{{ t('currentPassword') }}</label>
+        <input v-model="passwordForm.current_password" type="password" class="input input-bordered w-full mb-2" required>
+        <div v-if="passwordForm.errors.current_password" class="text-red-500 text-sm mb-2">
+          {{ passwordForm.errors.current_password }}
+        </div>
+
+        <!-- New password -->
+        <label class="block mb-2">{{ t('newPassword') }}</label>
+        <input v-model="passwordForm.password" type="password" class="input input-bordered w-full mb-2" required>
+        <div v-if="passwordForm.errors.password" class="text-red-500 text-sm mb-2">
+          {{ passwordForm.errors.password }}
+        </div>
+
+        <!-- Confirm new password -->
+        <label class="block mb-2">{{ t('confirmPassword') }}</label>
+        <input v-model="passwordForm.password_confirmation" type="password" class="input input-bordered w-full mb-2" required>
+        <div v-if="passwordForm.errors.password_confirmation" class="text-red-500 text-sm mb-2">
+          {{ passwordForm.errors.password_confirmation }}
+        </div>
+
+        <button class="btn btn-primary" type="submit">{{ t('changePassword') }}</button>
+      </form>
+
+      <!-- Delete Profile -->
+      <h2 class="text-2xl font-bold">{{ t('DeleteProfile') }}</h2>
+      <form @submit.prevent="deleteProfile" class="mt-6">
+        <label class="block mb-2">{{ t('password') }}</label>
+        <input
+          v-model="deleteForm.password"
+          type="password"
+          class="input input-bordered w-full mb-2"
+          required
+        />
+        <p v-if="deleteForm.errors.password" class="text-red-500 text-sm mt-1">
+          {{ deleteForm.errors.password }}
+        </p>
+
+        <button class="btn btn-error" type="submit">
+          {{ t('deleteProfile') }}
+        </button>
+      </form>
+    </section>
 </template>

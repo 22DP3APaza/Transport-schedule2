@@ -117,6 +117,18 @@ const selectToStop = (stop) => {
   showToDropdown.value = false;
 };
 
+// Switch from and to values
+const switchStops = () => {
+  const temp = from.value;
+  from.value = to.value;
+  to.value = temp;
+
+  // Also switch the filtered stops if needed
+  const tempFiltered = [...filteredFromStops.value];
+  filteredFromStops.value = [...filteredToStops.value];
+  filteredToStops.value = tempFiltered;
+};
+
 // Search for the matching route and navigate
 const searchRoute = () => {
   if (from.value && to.value) {
@@ -272,60 +284,73 @@ const changeLanguage = (language) => {
     <div class="middle" style="display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px;">
       <h1 style="font-size: 2em; font-weight: bold;">{{ t('publicTransport') }}</h1>
 
-      <div class="relative">
-        <input
-          type="text"
-          v-model="from"
-          :placeholder="t('from')"
-          class="input input-ghost w-full max-w-xs"
-          style="border-bottom: 2px solid black;"
-          @focus="showFromDropdown = filteredFromStops.length > 0"
-          @blur="showFromDropdown = false"
-        />
-        <ul
-          v-if="showFromDropdown && filteredFromStops.length"
-          class="absolute z-10 mt-1 w-full max-w-xs bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-700"
-        >
-          <li
-            v-for="stop in filteredFromStops"
-            :key="stop.stop_id || stop.stop_name"
-            @mousedown.prevent="selectFromStop(stop)"
-            class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-          >
-            {{ stop.stop_name }}
-          </li>
-        </ul>
-        <div v-if="isLoadingStops" class="absolute right-3 top-3">
-          <span class="loading loading-spinner loading-xs"></span>
-        </div>
-      </div>
+      <div class="flex items-center gap-4">
+        <div class="flex flex-col gap-4">
+          <!-- From Input -->
+          <div class="relative">
+            <input
+              type="text"
+              v-model="from"
+              :placeholder="t('from')"
+              class="input input-ghost w-full max-w-xs"
+              style="border-bottom: 2px solid black;"
+              @focus="showFromDropdown = filteredFromStops.length > 0"
+              @blur="showFromDropdown = false"
+            />
+            <ul
+              v-if="showFromDropdown && filteredFromStops.length"
+              class="absolute z-10 mt-1 w-full max-w-xs bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-700"
+            >
+              <li
+                v-for="stop in filteredFromStops"
+                :key="stop.stop_id || stop.stop_name"
+                @mousedown.prevent="selectFromStop(stop)"
+                class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              >
+                {{ stop.stop_name }}
+              </li>
+            </ul>
+            <div v-if="isLoadingStops" class="absolute right-3 top-3">
+              <span class="loading loading-spinner loading-xs"></span>
+            </div>
+          </div>
 
-      <div class="relative">
-        <input
-          type="text"
-          v-model="to"
-          :placeholder="t('to')"
-          class="input input-ghost w-full max-w-xs"
-          style="border-bottom: 2px solid black;"
-          @focus="showToDropdown = filteredToStops.length > 0"
-          @blur="showToDropdown = false"
-        />
-        <ul
-          v-if="showToDropdown && filteredToStops.length"
-          class="absolute z-10 mt-1 w-full max-w-xs bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-700"
-        >
-          <li
-            v-for="stop in filteredToStops"
-            :key="stop.stop_id || stop.stop_name"
-            @mousedown.prevent="selectToStop(stop)"
-            class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
-          >
-            {{ stop.stop_name }}
-          </li>
-        </ul>
-        <div v-if="isLoadingStops" class="absolute right-3 top-3">
-          <span class="loading loading-spinner loading-xs"></span>
+          <!-- To Input -->
+          <div class="relative">
+            <input
+              type="text"
+              v-model="to"
+              :placeholder="t('to')"
+              class="input input-ghost w-full max-w-xs"
+              style="border-bottom: 2px solid black;"
+              @focus="showToDropdown = filteredToStops.length > 0"
+              @blur="showToDropdown = false"
+            />
+            <ul
+              v-if="showToDropdown && filteredToStops.length"
+              class="absolute z-10 mt-1 w-full max-w-xs bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-700"
+            >
+              <li
+                v-for="stop in filteredToStops"
+                :key="stop.stop_id || stop.stop_name"
+                @mousedown.prevent="selectToStop(stop)"
+                class="px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
+              >
+                {{ stop.stop_name }}
+              </li>
+            </ul>
+            <div v-if="isLoadingStops" class="absolute right-3 top-3">
+              <span class="loading loading-spinner loading-xs"></span>
+            </div>
+          </div>
         </div>
+
+        <!-- Switch Button (positioned to the right) -->
+        <button @click="switchStops" class="btn btn-ghost p-2 self-center" :title="t('switchStops')">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 transform rotate-90">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+          </svg>
+        </button>
       </div>
 
       <button @click="searchRoute" class="btn btn-primary mt-4">{{ t('search') }}</button>
@@ -345,4 +370,4 @@ const changeLanguage = (language) => {
         <p v-else class="text-gray-500">{{ t('noRoutes') }}</p>
       </div>
     </div>
-  </template>
+</template>

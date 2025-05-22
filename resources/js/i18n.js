@@ -40,9 +40,27 @@ const messages = {
 
     // Settings
     settings: 'Settings',
-    toggleTheme: 'Toggle Theme',
     english: 'English',
     latvian: 'Latvian',
+    login: 'Log in',
+    logout: 'Log out',
+    adminPanel: 'Admin Panel',
+    profileSettings: 'Profile Settings',
+    username: 'Username',
+    saveChanges: 'Save Changes',
+    newPassword: 'New Password',
+    confirmPassword: 'Confirm Password',
+    changePassword: 'Change Password',
+    deleteProfile: 'Delete Profile',
+    UpdatePassword:"Update Password",
+    deleteProfile: "Delete Profile",
+    password: "Password",
+    profileDeleted: "Profile deleted successfully.",
+    passwordUpdated:"Password updated",
+    currentUsername:"Username",
+    changeUsername:"Change username",
+    currentPassword:"Current password",
+    DeleteProfile:"Delete profile",
 
     // Errors
     errorFetchingStops: 'Error fetching stops:',
@@ -110,6 +128,13 @@ const messages = {
     confirmDeleteUser: 'Are you sure you want to delete this user?',
     toggleAdminStatus: 'Toggle admin status',
     adminUsersTitle: 'Admin - Users',
+
+
+    loading: 'Loading...',
+    save: 'Save',
+    cancel: 'Cancel',
+    update: 'Update',
+
   },
   lv: {
     // Transport types
@@ -150,9 +175,27 @@ const messages = {
 
     // Settings
     settings: 'Iestatījumi',
-    toggleTheme: 'Pārslēgt tēmu',
     english: 'Angļu',
     latvian: 'Latviešu',
+    login: 'Pieteikties',
+    logout: 'Izrakstīties',
+    adminPanel: 'Administrācijas panelis',
+    profileSettings: 'Profila iestatījumi',
+    username: 'Lietotājvārds',
+    saveChanges: 'Saglabāt izmaiņas',
+    newPassword: 'Jauna parole',
+    confirmPassword: 'Apstiprināt paroli',
+    changePassword: 'Mainīt paroli',
+    deleteProfile: 'Dzēst profilu',
+    UpdatePassword:"Paroles maiņa",
+    DeleteProfile:"Izdzēst profilu",
+    password: "Parole",
+    profileDeleted: "Profils veiksmīgi izdzēsts",
+    passwordUpdated:"Parole atjaunota",
+    currentUsername:"Lietotājvārds",
+    changeUsername:"Mainīt Lietotājvārdu",
+    currentPassword:"Tagadējā parole",
+    DeleteProfile:"Dzēst profilu",
 
     // Errors
     errorFetchingStops: 'Kļūda ielādējot pieturas:',
@@ -220,7 +263,14 @@ const messages = {
     confirmDeleteUser: 'Vai tiešām vēlaties dzēst šo lietotāju?',
     toggleAdminStatus: 'Pārslēgt administratora statusu',
     adminUsersTitle: 'Administrēšana - Lietotāji',
-    
+
+
+
+    loading: 'Ielādējas...',
+    save: 'Saglabāt',
+    cancel: 'Atcelt',
+    update: 'Atjaunināt',
+
   }
 }
 

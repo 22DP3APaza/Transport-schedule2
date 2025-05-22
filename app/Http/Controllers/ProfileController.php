@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Support\Facades\Hash;
 
 class ProfileController extends Controller
 {
@@ -29,35 +30,55 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $user = $request->user();
+        $validated = $request->validated();
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        $user->fill($validated);
+
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
         }
 
-        $request->user()->save();
+        $user->save();
 
-        return Redirect::route('profile.edit');
+        return Redirect::route('profile.edit')->with('status', 'profile-updated');
     }
 
     /**
      * Delete the user's account.
      */
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request)
     {
-        $request->validate([
-            'password' => ['required', 'current_password'],
-        ]);
+    $request->validate([
+        'password' => ['required'],
+    ]);
 
-        $user = $request->user();
+    $user = $request->user();
 
-        Auth::logout();
+    if (!Hash::check($request->password, $user->password)) {
+        return back()->withErrors(['password' => 'The password is incorrect.']);
+    }
 
-        $user->delete();
+    $user->delete();
 
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+    return redirect('/')->with('success', 'Profile deleted successfully.');
+    }
+    public function updatePassword(Request $request)
+    {
+    $request->validate([
+        'current_password' => ['required'],
+        'password' => ['required', 'confirmed', 'min:8'],
+    ]);
 
-        return Redirect::to('/');
+    $user = $request->user();
+
+    if (!Hash::check($request->current_password, $user->password)) {
+        return back()->withErrors(['current_password' => 'The current password is incorrect.']);
+    }
+
+    $user->password = Hash::make($request->password);
+    $user->save();
+
+    return back()->with('success', 'Password updated successfully.');
     }
 }

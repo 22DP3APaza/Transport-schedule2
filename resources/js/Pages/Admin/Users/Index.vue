@@ -72,10 +72,18 @@ const deleteUser = async (user) => {
                                 />
                             </td>
                             <td>
-                                <button class="btn btn-error btn-xs" @click="deleteUser(user)">
-                                    {{ t('deleteUser') }}
-                                </button>
-                            </td>
+    <div class="flex gap-2">
+        <Link :href="`/admin/users/${user.id}/edit`" class="btn btn-primary btn-xs">
+            {{ t('edit') }}
+        </Link>
+        <button class="btn btn-error btn-xs" @click="deleteUser(user)">
+            {{ t('deleteUser') }}
+        </button>
+    </div>
+</td>
+
+
+
                         </tr>
                     </tbody>
                 </table>

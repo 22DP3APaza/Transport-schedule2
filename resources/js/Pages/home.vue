@@ -6,6 +6,8 @@ import { useI18n } from 'vue-i18n';
 const { t, locale } = useI18n();
 const page = usePage();
 const currentTheme = ref('light');
+const from = ref('');
+const to = ref('');
 
 // Load theme and language preferences
 onMounted(() => {
@@ -20,6 +22,13 @@ onMounted(() => {
         locale.value = savedLanguage;
     }
 });
+
+// Switch from and to values
+const switchStops = () => {
+  const temp = from.value;
+  from.value = to.value;
+  to.value = temp;
+};
 
 const isActive = (path) => {
     return window.location.pathname === path;
@@ -140,7 +149,30 @@ const changeLanguage = (language) => {
     <div class="middle" style="display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px;">
         <h1 style="font-size: 2em; font-weight: bold;">{{ t('publicTransport') }}</h1>
 
-        <input type="text" :placeholder="t('from')" class="input input-ghost w-full max-w-xs" style="border-bottom: 2px solid black;" />
-        <input type="text" :placeholder="t('to')" class="input input-ghost w-full max-w-xs" style="border-bottom: 2px solid black;" />
+        <div class="flex items-center gap-4">
+          <div class="flex flex-col gap-4">
+            <input
+              type="text"
+              v-model="from"
+              :placeholder="t('from')"
+              class="input input-ghost w-full max-w-xs"
+              style="border-bottom: 2px solid black;"
+            />
+            <input
+              type="text"
+              v-model="to"
+              :placeholder="t('to')"
+              class="input input-ghost w-full max-w-xs"
+              style="border-bottom: 2px solid black;"
+            />
+          </div>
+
+          <!-- Switch Button (rotated 90 degrees) -->
+          <button @click="switchStops" class="btn btn-ghost p-2 self-center" :title="t('switchStops')">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 transform rotate-90">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+            </svg>
+          </button>
+        </div>
     </div>
 </template>
