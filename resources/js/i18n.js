@@ -147,6 +147,9 @@ const messages = {
     mySavedTimes:"My saved times",
     trip:"Trip",
     noSavedTimesYet:"No saved times yet",
+    schedule: "Schedule",
+    workday: "Workday",
+    weekend: "Weekend",
 
     // --- NEW: Validation Error Messages ---
     validation: {
@@ -320,6 +323,9 @@ const messages = {
     mySavedTimes:"Mani saglabātie laiki",
     trip:"Maršruts",
     noSavedTimesYet:"Nav saglabātu laiku pašlaik",
+    schedule: "Grafiks",
+    workday: "Darbadiena",
+    weekend: "Nedēļas nogale",
 
     // --- NEW: Validation Error Messages ---
     validation: {

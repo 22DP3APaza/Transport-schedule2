@@ -47,23 +47,77 @@ class SavedRouteController extends Controller
     /**
      * Display a listing of the user's saved stop times.
      */
-    public function index(Request $request) // Add Request $request to get query params
+    public function index(Request $request)
     {
         if (!Auth::check()) {
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
-        // Fetch saved times for specific trip_id and stop_id if provided
-        $query = Auth::user()->savedStopTimes();
+        // Fetch saved times with trip and stop information
+        $query = Auth::user()->savedStopTimes()
+            ->select('user_saved_stop_times.*')
+            ->join('trips', 'user_saved_stop_times.trip_id', '=', 'trips.trip_id')
+            ->join('routes', 'trips.route_id', '=', 'routes.route_id')
+            ->join('stops', 'user_saved_stop_times.stop_id', '=', 'stops.stop_id')
+            ->leftJoin('calendar', 'trips.service_id', '=', 'calendar.service_id')
+            ->addSelect([
+                'routes.route_short_name',
+                'routes.route_long_name',
+                'routes.route_color',
+                'stops.stop_name',
+                'calendar.monday',
+                'calendar.tuesday',
+                'calendar.wednesday',
+                'calendar.thursday',
+                'calendar.friday',
+                'calendar.saturday',
+                'calendar.sunday',
+                'trips.service_id'  // Add service_id for debugging
+            ]);
 
         if ($request->has('trip_id')) {
-            $query->where('trip_id', $request->input('trip_id'));
+            $query->where('user_saved_stop_times.trip_id', $request->input('trip_id'));
         }
         if ($request->has('stop_id')) {
-            $query->where('stop_id', $request->input('stop_id'));
+            $query->where('user_saved_stop_times.stop_id', $request->input('stop_id'));
         }
 
-        return $query->get();
+        $results = $query->get()->map(function ($item) {
+            // Default to both workday and weekend if no calendar data
+            $isWorkday = true;
+            $isWeekend = true;
+
+            // Only override if we have calendar data
+            if (!is_null($item->monday)) {
+                $isWorkday = $item->monday == 1 || $item->tuesday == 1 ||
+                            $item->wednesday == 1 || $item->thursday == 1 ||
+                            $item->friday == 1;
+                $isWeekend = $item->saturday == 1 || $item->sunday == 1;
+            }
+
+            $schedule = [];
+            if ($isWorkday) $schedule[] = 'workday';
+            if ($isWeekend) $schedule[] = 'weekend';
+
+            // If no schedule type is set, default to both
+            if (empty($schedule)) {
+                $schedule = ['workday', 'weekend'];
+            }
+
+            return [
+                'id' => $item->id,
+                'trip_id' => $item->trip_id,
+                'stop_id' => $item->stop_id,
+                'route_name' => $item->route_long_name ?? $item->route_short_name,
+                'stop_name' => $item->stop_name,
+                'saved_times' => $item->saved_times,
+                'route_color' => $item->route_color,
+                'schedule_type' => $schedule,
+                'service_id' => $item->service_id  // Include service_id for debugging
+            ];
+        });
+
+        return $results;
     }
 
     public function destroy(string $id) // Ensure the parameter matches the route segment

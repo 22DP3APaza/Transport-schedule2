@@ -490,6 +490,7 @@ const changeLanguage = (language) => {
                     <tr>
                         <th>{{ t('route') }}</th>
                         <th>{{ t('stop') }}</th>
+                        <th>{{ t('schedule') }}</th>
                         <th>{{ t('savedTimes') }}</th>
                         <th>{{ t('actions') }}</th>
                     </tr>
@@ -497,8 +498,22 @@ const changeLanguage = (language) => {
                 <tbody>
                     <tr v-for="saved in userSavedTimes" :key="saved.id"
                         @click="viewSavedRoute(saved)" class="cursor-pointer hover:bg-base-200 transition-colors duration-200">
-                        <td>{{ saved.route_long_name || saved.route_short_name || saved.trip_id }}</td>
-                        <td>{{ saved.stop_name || saved.stop_id }}</td>
+                        <td>
+                            <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: '#' + saved.route_color }"></div>
+                                {{ saved.route_name }}
+                            </div>
+                        </td>
+                        <td>{{ saved.stop_name }}</td>
+                        <td>
+                            <div class="flex gap-1">
+                                <span v-for="type in saved.schedule_type" :key="type"
+                                      class="badge badge-sm"
+                                      :class="type === 'workday' ? 'badge-primary' : 'badge-secondary'">
+                                    {{ t(type) }}
+                                </span>
+                            </div>
+                        </td>
                         <td>
                             <span v-for="(time, idx) in saved.saved_times" :key="idx" class="badge badge-primary mr-1">
                                 {{ time }}

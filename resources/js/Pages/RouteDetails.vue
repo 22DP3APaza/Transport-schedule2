@@ -56,12 +56,23 @@ const viewRouteOnMap = () => {
     router.visit(`/route/map/${routedata.value.route_id}/${selectedTrip.value.trip_id}`);
 };
 
+// IMPORTANT CHANGE: handleTimeClick now expects the full 'time' object which includes 'trip_id'
 const handleTimeClick = (time) => {
-    if (!selectedTrip.value || !selectedStop.value || !time.departure_time) {
-        console.error(t('missingDataForTimeClick'));
+    // Ensure both departure_time and trip_id are available
+    if (!selectedStop.value || !time.departure_time || !time.trip_id) {
+        console.error(t('missingDataForTimeClick'), time);
         return;
     }
-    router.visit(`/stoptimes?trip_id=${selectedTrip.value.trip_id}&stop_id=${selectedStop.value.stop_id}&departure_time=${time.departure_time}`);
+
+    // Pass the specific trip_id along with stop_id and departure_time
+    router.visit(`/stoptimes?trip_id=${time.trip_id}&stop_id=${selectedStop.value.stop_id}&departure_time=${time.departure_time}`, {
+        onError: (errors) => {
+            // The backend now returns an empty array for no data, so 404 should be less common
+            // but this onError is still useful for other navigation errors.
+            console.error(`${t('errorNavigating')}:`, errors);
+            alert(`${t('errorNavigating')}: ${errors.message || 'Unknown error'}`);
+        }
+    });
 };
 
 // === Format and Time Checks ===
@@ -158,24 +169,31 @@ const fetchStopTimes = async () => {
     hasWorkdaysData.value = false;
     hasWeekendsData.value = false;
     stopTimesData.value = { workdays: [], weekends: [] };
-    stopTimes.value = [];
+    stopTimes.value = []; // Clear current stopTimes
 
     const fetchSchedule = async (type) => {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000);
 
+            // IMPORTANT: Pass the selectedTrip.value.trip_id to the backend
             const response = await fetch(
                 `/stop/times/${selectedStop.value.stop_id}?type=${type}&route_id=${routedata.value.route_id}&trip_id=${selectedTrip.value.trip_id}`,
                 { signal: controller.signal }
             ).finally(() => clearTimeout(timeoutId));
 
-            if (response.status === 404 || !response.ok) return [];
+            // Backend now returns [] for no data, so we check for response.ok
+            if (!response.ok) {
+                console.warn(`Failed to fetch ${type} schedule for stop ${selectedStop.value.stop_id} and route ${routedata.value.route_id}. Status: ${response.status}`);
+                return [];
+            }
 
             const data = await response.json();
+            // Ensure data is an array before mapping
             return Array.isArray(data) ? data : [];
         } catch (error) {
             console.error(`Error fetching ${type} schedule:`, error);
+            // Return empty array on error to prevent rendering issues
             return [];
         }
     };
@@ -185,34 +203,46 @@ const fetchStopTimes = async () => {
         fetchSchedule('weekends')
     ]);
 
+    // Process fetched data
     stopTimesData.value.workdays = workdaysData
-        .filter(t => t?.departure_time)
+        .filter(t => t?.departure_time && t?.trip_id) // Ensure both are present
         .map(t => ({
             departure_time: formatTime(t.departure_time),
+            trip_id: t.trip_id, // Keep trip_id for handleTimeClick
             isFuture: isFutureTime(formatTime(t.departure_time))
         }));
     hasWorkdaysData.value = stopTimesData.value.workdays.length > 0;
 
     stopTimesData.value.weekends = weekendsData
-        .filter(t => t?.departure_time)
+        .filter(t => t?.departure_time && t?.trip_id) // Ensure both are present
         .map(t => ({
             departure_time: formatTime(t.departure_time),
+            trip_id: t.trip_id, // Keep trip_id for handleTimeClick
             isFuture: isFutureTime(formatTime(t.departure_time))
         }));
     hasWeekendsData.value = stopTimesData.value.weekends.length > 0;
 
+    // Set initial display based on available data
     if (hasWorkdaysData.value) {
         showWorkdays.value = true;
         stopTimes.value = stopTimesData.value.workdays;
     } else if (hasWeekendsData.value) {
         showWorkdays.value = false;
         stopTimes.value = stopTimesData.value.weekends;
+    } else {
+        // If neither has data, ensure stopTimes is empty and no tabs are shown
+        stopTimes.value = [];
+        showWorkdays.value = true; // Default to workdays tab, but it will be empty
     }
 };
 
 // === Watchers and Lifecycle Hooks ===
 watch(selectedTrip, async (newTrip) => {
-    if (!newTrip) return;
+    if (!newTrip) {
+        stops.value = [];
+        selectedStop.value = null;
+        return;
+    }
 
     try {
         const res = await fetch(`/route/details/${routedata.value.route_id}/${newTrip.trip_id}/stops`);
@@ -221,6 +251,8 @@ watch(selectedTrip, async (newTrip) => {
         selectedStop.value = data[0] || null;
     } catch (err) {
         console.error(t('errorFetchingStops'), err);
+        stops.value = [];
+        selectedStop.value = null;
     }
 }, { immediate: true });
 
@@ -229,6 +261,12 @@ watch([selectedStop, selectedTrip], () => {
     if (selectedStop.value && selectedTrip.value) {
         fetchStopTimes();
         fetchUserSavedTimes(); // Fetch user's saved times whenever stop/trip changes
+    } else {
+        // Clear stop times if selection is invalid
+        stopTimes.value = [];
+        stopTimesData.value = { workdays: [], weekends: [] };
+        hasWorkdaysData.value = false;
+        hasWeekendsData.value = false;
     }
 });
 
@@ -244,6 +282,7 @@ watch(showSaveModal, (newValue) => {
 
 const updateTime = () => {
     currentTime.value = new Date();
+    // Re-evaluate isFuture for all stop times
     stopTimes.value = stopTimes.value.map(t => ({
         ...t,
         isFuture: isFutureTime(t.departure_time)
@@ -253,7 +292,7 @@ const updateTime = () => {
 let timeInterval = null;
 onMounted(() => {
     timeInterval = setInterval(updateTime, 60000);
-    updateTime();
+    updateTime(); // Initial update
 
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme) {
@@ -293,7 +332,7 @@ const getTransportTypeFromRouteId = (id) => {
 </script>
 
 <template>
-    <Head :title="routedata.route_short_name" />
+    <Head :title="routeDisplayName" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link rel="icon" type="image/png" href="/images/logo.webp">
 
@@ -382,9 +421,16 @@ const getTransportTypeFromRouteId = (id) => {
     </header>
 
     <div class="container mx-auto mt-6 p-4">
-        <button @click="goBack" class="btn btn-outline mb-4 border-base-content/20 hover:border-base-content/40">
-            ← {{ t('back') }}
-        </button>
+        <div class="flex justify-between items-center mb-6">
+            <button @click="goBack" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded inline-flex items-center">
+                <span>← {{ t('back') }}</span>
+            </button>
+            <div class="flex space-x-2">
+                <button @click="viewRouteOnMap" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded inline-flex items-center">
+                    <span>{{ t('viewOnMap') }}</span>
+                </button>
+            </div>
+        </div>
 
         <div class="flex items-center space-x-4">
             <div
@@ -393,13 +439,6 @@ const getTransportTypeFromRouteId = (id) => {
                 :title="t('routeNumber')"
             >
                 {{ routeDisplayName }} </div>
-            <button
-                @click="viewRouteOnMap"
-                class="btn btn-square btn-ghost w-10 h-10 flex items-center justify-center"
-                :title="t('viewRouteOnMap')"
-            >
-                <img src="/images/map-location-pin-svgrepo-com.svg" class="w-6 h-6" :alt="t('viewRouteOnMap')">
-            </button>
             <div class="text-lg font-semibold text-base-content">
                 {{ currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) }}
             </div>
@@ -413,7 +452,7 @@ const getTransportTypeFromRouteId = (id) => {
                 class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-base-content/20 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md bg-gray-700 text-base-content" :aria-label="t('selectTrip')"
             >
                 <option v-for="trip in trips" :key="trip.trip_id" :value="trip">
-                    {{ routedata.route_short_name }} - {{ trip.trip_headsign }} ( {{ trip.shape_id }})
+                    {{ trip.full_name }}
                 </option>
             </select>
         </div>
@@ -461,7 +500,7 @@ const getTransportTypeFromRouteId = (id) => {
             <div v-if="stopTimes.length > 0" class="grid grid-cols-[repeat(auto-fill,minmax(60px,1fr))] gap-1 justify-items-center">
                 <button
                     v-for="(time, index) in stopTimes"
-                    :key="index"
+                    :key="`${time.trip_id}-${time.departure_time}-${index}`"
                     class="btn btn-xs border-none bg-transparent hover:bg-primary hover:text-primary-content transition px-2 py-1 relative"
                     :class="{
                         'text-base-content': time.isFuture,
@@ -486,7 +525,7 @@ const getTransportTypeFromRouteId = (id) => {
                 {{ t('saveSelectedTimes') }}
             </button>
             <div v-else-if="stopTimes.length && !$page.props.auth.user" class="text-sm text-base-content/70 mt-2">
-                 {{ t('loginToSaveTimes') }}
+                    {{ t('loginToSaveTimes') }}
             </div>
         </div>
 
