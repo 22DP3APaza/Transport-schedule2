@@ -17,6 +17,8 @@ use App\Models\Trip;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
+use App\Http\Controllers\SavedRouteController;
+use App\Http\Controllers\StopTimeController;
 
 // Home Page
 Route::get('/', function () {
@@ -371,10 +373,17 @@ Route::get('/api/stops', function () {
 });
 
 
-Route::middleware(['auth', 'admin'])->prefix('admin')->group(function () {
-    // Users
-    Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
+Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::resource('users', UserController::class); // This creates index, create, store, show, edit, update, destroy
+    Route::put('users/{user}/toggle-admin', [UserController::class, 'toggleAdmin'])->name('users.toggleAdmin');
+});
 
+
+
+Route::middleware(['auth'])->group(function () {
+    Route::post('/saved-routes', [SavedRouteController::class, 'store'])->name('saved-routes.store');
+    Route::get('/saved-routes', [SavedRouteController::class, 'index'])->name('saved-routes.index');
+    Route::post('/save-stop-times', [StopTimeController::class, 'store'])->name('stop-times.store');
 });
 
 // GTFS Data Import Routes
@@ -391,3 +400,13 @@ require __DIR__.'/auth.php';
 // Additional Controllers
 Route::post('/search-route', [RouteController::class, 'searchRoute'])->name('searchRoute');
 Route::get('/route/{id}', [RouteController::class, 'show'])->name('route.show');
+
+
+Route::post('/search-route', [RouteController::class, 'searchRoute'])->name('searchRoute');
+Route::post('/bus/search', [RouteController::class, 'searchBus'])->name('bus.search');
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::post('/save-stop-times', [SavedRouteController::class, 'store'])->name('save.stop.times');
+    Route::get('/my-saved-times', [SavedRouteController::class, 'index'])->name('my.saved.times');
+    Route::delete('/my-saved-times/{id}', [SavedRouteController::class, 'destroy'])->name('my.saved.times.delete');
+});

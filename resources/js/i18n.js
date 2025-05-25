@@ -21,6 +21,7 @@ const messages = {
     logoAlt: 'Transport Logo',
     currentTime: 'Current Time',
     routeNumber: 'Route Number',
+    switchStops:"Switch stops",
 
     // Schedule
     workdays: 'Workdays',
@@ -52,15 +53,15 @@ const messages = {
     confirmPassword: 'Confirm Password',
     changePassword: 'Change Password',
     deleteProfile: 'Delete Profile',
-    UpdatePassword:"Update Password",
-    deleteProfile: "Delete Profile",
+    UpdatePassword: "Update Password",
     password: "Password",
     profileDeleted: "Profile deleted successfully.",
-    passwordUpdated:"Password updated",
-    currentUsername:"Username",
-    changeUsername:"Change username",
-    currentPassword:"Current password",
-    DeleteProfile:"Delete profile",
+    passwordUpdated: "Password updated",
+    currentUsername: "Username",
+    changeUsername: "Change username",
+    currentPassword: "Current password",
+    DeleteProfile: "Delete profile",
+    toggleTheme:"Toggle Theme",
 
     // Errors
     errorFetchingStops: 'Error fetching stops:',
@@ -71,18 +72,13 @@ const messages = {
     userNotFound: "We can't find a user with that email address",
 
     // Auth
-    login: 'Log in',
-    logout: 'Log Out',
     register: 'Register',
     email: 'Email',
     emailPlaceholder: 'Enter your email',
-    password: 'Password',
     passwordPlaceholder: 'Enter your password',
     rememberMe: 'Remember me',
     forgotPassword: 'Forgot password?',
     noAccount: "Don't have an account?",
-    username: 'Username',
-    confirmPassword: 'Confirm Password',
     alreadyRegistered: 'Already registered?',
     or: 'OR',
     loginWithGoogle: 'Login with Google',
@@ -93,7 +89,8 @@ const messages = {
     resetPassword: 'Reset Password',
     passwordResetLinkSent: 'A password reset link has been sent to your email address.',
     passwordResetSuccess: 'Your password has been reset successfully!',
-    passwordRequirements: 'Password must be at least 8 characters',
+    // Updated password requirements message
+    passwordRequirements: 'Password must be at least 8 characters and contain at least one capital letter.',
 
     // Email verification
     emailVerification: 'Email Verification',
@@ -107,7 +104,6 @@ const messages = {
     emailAddress: 'Email Address',
 
     //maps
-
     viewOnMap: "View on Map",
     viewRouteOnMap: "View this route on Google Maps",
     stopSequence: 'Sequence',
@@ -120,21 +116,63 @@ const messages = {
     // Admin - Users
     userManagement: 'User Management',
     id: 'ID',
-    username: 'Username',
-    email: 'Email',
     admin: 'Admin',
     actions: 'Actions',
     deleteUser: 'Delete',
     confirmDeleteUser: 'Are you sure you want to delete this user?',
     toggleAdminStatus: 'Toggle admin status',
     adminUsersTitle: 'Admin - Users',
-
+    create:"create",
+    confirmDeleteTitle:"Confirm delete title",
+    confirmDeleteMessage:"Confirm delete message",
+    createUser:"Create user",
+    edit:"edit",
+    editUserTitle:"Edit user title",
+    editUser:"Edit user",
+    createUserTitle:"Create User title",
 
     loading: 'Loading...',
     save: 'Save',
     cancel: 'Cancel',
     update: 'Update',
 
+    //Save Times
+    saveSelectedTimes: "save Selected Times",
+    selectStopTimesToSave: "Select Stop Times To Save",
+    timesSavedSuccessfully: "Times Saved Successfully",
+    loginToSaveTimes:"Login to save times",
+    stop:"Stop",
+    savedTimes:"Saved times",
+    delete:"delete",
+    mySavedTimes:"My saved times",
+    trip:"Trip",
+    noSavedTimesYet:"No saved times yet",
+
+    // --- NEW: Validation Error Messages ---
+    validation: {
+      password: {
+        min: 'The password field must be at least {min} characters.',
+        mixed_case: 'The password field must contain at least one uppercase and one lowercase letter.',
+        numbers: 'The password field must contain at least one number.',
+        symbols: 'The password field must contain at least one symbol.',
+        required: 'The password field is required.',
+        confirmed: 'The password confirmation does not match.',
+      },
+      email: {
+        required: 'The email field is required.',
+        email: 'The email field must be a valid email address.',
+        unique: 'The email has already been taken.',
+      },
+      username: {
+        required: 'The username field is required.',
+        unique: 'The username has already been taken.',
+      },
+      // General validation messages (Laravel often uses these for generic errors)
+      required: 'The {attribute} field is required.',
+      unique: 'The {attribute} has already been taken.',
+      string: 'The {attribute} field must be a string.',
+      max: 'The {attribute} field must not be greater than {max} characters.',
+    }
   },
   lv: {
     // Transport types
@@ -156,6 +194,7 @@ const messages = {
     logoAlt: 'Transporta logo',
     currentTime: 'Pašreizējais laiks',
     routeNumber: 'Maršruta numurs',
+    switchStops:"Mainīt pieturu",
 
     // Schedule
     workdays: 'Darbdienas',
@@ -187,15 +226,15 @@ const messages = {
     confirmPassword: 'Apstiprināt paroli',
     changePassword: 'Mainīt paroli',
     deleteProfile: 'Dzēst profilu',
-    UpdatePassword:"Paroles maiņa",
-    DeleteProfile:"Izdzēst profilu",
+    UpdatePassword: "Paroles maiņa",
     password: "Parole",
     profileDeleted: "Profils veiksmīgi izdzēsts",
-    passwordUpdated:"Parole atjaunota",
-    currentUsername:"Lietotājvārds",
-    changeUsername:"Mainīt Lietotājvārdu",
-    currentPassword:"Tagadējā parole",
-    DeleteProfile:"Dzēst profilu",
+    passwordUpdated: "Parole atjaunota",
+    currentUsername: "Lietotājvārds",
+    changeUsername: "Mainīt Lietotājvārdu",
+    currentPassword: "Tagadējā parole",
+    DeleteProfile: "Dzēst profilu",
+    toggleTheme:"Ieslēgt motīvu",
 
     // Errors
     errorFetchingStops: 'Kļūda ielādējot pieturas:',
@@ -206,18 +245,13 @@ const messages = {
     userNotFound: "Mēs nevaram atrast lietotāju ar šo e-pasta adresi",
 
     // Auth
-    login: 'Pieteikties',
-    logout: 'Iziet',
     register: 'Reģistrēties',
     email: 'E-pasts',
     emailPlaceholder: 'Ievadiet savu e-pastu',
-    password: 'Parole',
     passwordPlaceholder: 'Ievadiet savu paroli',
     rememberMe: 'Atcerēties mani',
     forgotPassword: 'Aizmirsāt paroli?',
     noAccount: 'Nav konta?',
-    username: 'Lietotājvārds',
-    confirmPassword: 'Apstiprināt paroli',
     alreadyRegistered: 'Jau reģistrējies?',
     or: 'VAI',
     loginWithGoogle: 'Pieteikties ar Google',
@@ -228,7 +262,8 @@ const messages = {
     resetPassword: 'Atiestatīt paroli',
     passwordResetLinkSent: 'Paroles atiestatīšanas saite ir nosūtīta uz jūsu e-pasta adresi.',
     passwordResetSuccess: 'Jūsu parole ir veiksmīgi atiestatīta!',
-    passwordRequirements: 'Parolei jābūt vismaz 8 simbolus garai',
+    // Updated password requirements message
+    passwordRequirements: 'Parolei jābūt vismaz 8 rakstzīmes garai un jāsatur vismaz viens lielais burts.',
 
     // Email verification
     emailVerification: 'E-pasta verifikācija',
@@ -242,7 +277,6 @@ const messages = {
     emailAddress: 'E-pasta adrese',
 
     //maps
-
     viewOnMap: "Skatīt kartē",
     viewRouteOnMap: "Skatīt šo maršrutu Google Maps",
     stopSequence: 'Secība',
@@ -255,22 +289,63 @@ const messages = {
     // Admin - Users
     userManagement: 'Lietotāju pārvaldība',
     id: 'ID',
-    username: 'Lietotājvārds',
-    email: 'E-pasts',
     admin: 'Administrators',
     actions: 'Darbības',
     deleteUser: 'Dzēst',
     confirmDeleteUser: 'Vai tiešām vēlaties dzēst šo lietotāju?',
     toggleAdminStatus: 'Pārslēgt administratora statusu',
     adminUsersTitle: 'Administrēšana - Lietotāji',
-
-
+    create:"veidot",
+    confirmDeleteTitle:"Piekrist dzēst nosaukumu",
+    confirmDeleteMessage:"Piekrist dzēst īzziņa",
+    createUser:"Izveidot lietotāju",
+    edit:"rediģēt",
+    editUserTitle:"Rediģēt lietotāja vārdu",
+    editUser:"rediģēt lietotāju",
+    createUserTitle:"Izveidot lietotāja vārdu",
 
     loading: 'Ielādējas...',
     save: 'Saglabāt',
     cancel: 'Atcelt',
     update: 'Atjaunināt',
 
+    //Save Times
+    saveSelectedTimes: "Saglabāt izvēlētps laikus",
+    selectStopTimesToSave: "Izvēlies laikus ko saglabāt",
+    timesSavedSuccessfully: "Laiki saglabāti",
+    loginToSaveTimes:"Ielagojies lai saglabātu laikus",
+    stop:"Pietura",
+    savedTimes:"Saglabātie laiki",
+    delete:"Izdzēst",
+    mySavedTimes:"Mani saglabātie laiki",
+    trip:"Maršruts",
+    noSavedTimesYet:"Nav saglabātu laiku pašlaik",
+
+    // --- NEW: Validation Error Messages ---
+    validation: {
+      password: {
+        min: 'Parolei jābūt vismaz {min} rakstzīmes garai.',
+        mixed_case: 'Parolei jāsatur vismaz viens lielais un viens mazais burts.',
+        numbers: 'Parolei jāsatur vismaz viens cipars.',
+        symbols: 'Parolei jāsatur vismaz viens simbols.',
+        required: 'Paroles lauks ir obligāts.',
+        confirmed: 'Paroles apstiprinājums nesakrīt.',
+      },
+      email: {
+        required: 'E-pasta lauks ir obligāts.',
+        email: 'E-pasta laukam jābūt derīgai e-pasta adresei.',
+        unique: 'Šis e-pasts jau ir reģistrēts.',
+      },
+      username: {
+        required: 'Lietotājvārda lauks ir obligāts.',
+        unique: 'Šis lietotājvārds jau ir aizņemts.',
+      },
+      // General validation messages (Laravel often uses these for generic errors)
+      required: 'Lauks "{attribute}" ir obligāts.',
+      unique: 'Lauks "{attribute}" jau ir aizņemts.',
+      string: 'Laukam "{attribute}" jābūt teksta virknei.',
+      max: 'Lauks "{attribute}" nedrīkst pārsniegt {max} rakstzīmes.',
+    }
   }
 }
 

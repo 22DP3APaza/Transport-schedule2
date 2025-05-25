@@ -45,4 +45,10 @@ class User extends Authenticatable
             'admin' => 'boolean',
         ];
     }
+
+    public function savedStopTimes()
+    {
+        return $this->hasMany(UserSavedStopTime::class);
+    }
+
 }

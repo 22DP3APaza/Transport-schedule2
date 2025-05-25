@@ -132,15 +132,28 @@ const switchStops = () => {
 // Search for the matching route and navigate
 const searchRoute = () => {
   if (from.value && to.value) {
-    router.post('/search-route', {
+    router.post('/bus/search', {
       from: from.value,
-      to: to.value,
-      type: 'bus'
+      to: to.value
+    }, {
+      preserveState: true,
+      onSuccess: () => {
+        // Handled by the backend
+      },
+      onError: (errors) => {
+        if (errors.error) {
+          alert(errors.error);
+        }
+      }
     });
   } else {
     alert(t('pleaseEnterValues'));
   }
 };
+
+// Get search suggestions from page props
+const searchSuggestions = computed(() => page.props.suggestions || {});
+const searchParams = computed(() => page.props.searchParams || {});
 
 const isActive = (routeName) => {
   return page.url.startsWith(routeName);
@@ -173,6 +186,12 @@ onMounted(() => {
   const savedLanguage = localStorage.getItem('language');
   if (savedLanguage) {
     locale.value = savedLanguage;
+  }
+
+  // Check for search params in URL
+  if (page.props.searchParams) {
+    from.value = page.props.searchParams.from || '';
+    to.value = page.props.searchParams.to || '';
   }
 
   // Fetch stops data when component mounts
@@ -354,6 +373,42 @@ const changeLanguage = (language) => {
       </div>
 
       <button @click="searchRoute" class="btn btn-primary mt-4">{{ t('search') }}</button>
+
+      <!-- Search Suggestions -->
+      <div v-if="searchSuggestions.fromStopRoutes?.length || searchSuggestions.toStopRoutes?.length"
+           class="search-suggestions w-full max-w-md mt-4 p-4 bg-base-200 rounded-lg">
+        <h3 class="text-lg font-semibold mb-2">{{ t('searchSuggestions') }}</h3>
+
+        <div v-if="searchSuggestions.fromStopRoutes?.length" class="mb-4">
+          <h4 class="font-medium">{{ t('routesFromStop', { stop: searchParams.from }) }}</h4>
+          <div class="flex flex-wrap gap-2 mt-2">
+            <router-link
+              v-for="route in searchSuggestions.fromStopRoutes"
+              :key="route.route_id"
+              :to="routeDetailsUrl(route.route_id)"
+              class="btn btn-sm"
+              :style="{ backgroundColor: getTransportColor('bus') }"
+            >
+              {{ route.route_short_name }}
+            </router-link>
+          </div>
+        </div>
+
+        <div v-if="searchSuggestions.toStopRoutes?.length">
+          <h4 class="font-medium">{{ t('routesToStop', { stop: searchParams.to }) }}</h4>
+          <div class="flex flex-wrap gap-2 mt-2">
+            <router-link
+              v-for="route in searchSuggestions.toStopRoutes"
+              :key="route.route_id"
+              :to="routeDetailsUrl(route.route_id)"
+              class="btn btn-sm"
+              :style="{ backgroundColor: getTransportColor('bus') }"
+            >
+              {{ route.route_short_name }}
+            </router-link>
+          </div>
+        </div>
+      </div>
 
       <div class="container w-full max-w-xl mt-6 flex flex-wrap gap-2 justify-center">
         <template v-if="sortedRoutes.length">

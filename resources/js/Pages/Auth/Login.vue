@@ -11,27 +11,52 @@ import { onMounted, ref } from 'vue';
 const { t, locale } = useI18n();
 const currentTheme = ref('light'); // Add theme state
 
-// Load saved preferences on component mount
+// Initialize form with default values
+const form = useForm({
+    email: '',
+    password: '',
+    remember: false,
+});
+
+// Load saved preferences and "remember me" state on component mount
 onMounted(() => {
-    // Load language
+    // Load language preference from local storage
     const savedLanguage = localStorage.getItem('language');
     if (savedLanguage) {
         locale.value = savedLanguage;
     }
 
-    // Load theme
+    // Load theme preference from local storage
     const savedTheme = localStorage.getItem('theme') || 'light';
     currentTheme.value = savedTheme;
     document.documentElement.setAttribute('data-theme', savedTheme);
+
+    // Load "remember me" state and pre-fill email if remembered
+    const savedRememberMe = localStorage.getItem('rememberMe');
+    if (savedRememberMe) {
+        try {
+            const rememberMeData = JSON.parse(savedRememberMe);
+            // Check if rememberMeData and remember property exist and is true
+            if (rememberMeData && rememberMeData.remember) {
+                form.remember = true; // Set the remember checkbox to true
+                form.email = rememberMeData.email || ''; // Pre-fill the email field
+            }
+        } catch (e) {
+            // Log error if parsing fails and clear potentially corrupted data
+            console.error("Error parsing rememberMe data from localStorage:", e);
+            localStorage.removeItem('rememberMe');
+        }
+    }
 });
 
-// Theme toggle function
+// Theme toggle function: switches between 'light' and 'dark' themes
 const toggleTheme = () => {
     currentTheme.value = currentTheme.value === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', currentTheme.value);
-    localStorage.setItem('theme', currentTheme.value);
+    localStorage.setItem('theme', currentTheme.value); // Persist theme preference
 };
 
+// Define component props
 defineProps({
     canResetPassword: {
         type: Boolean,
@@ -41,22 +66,31 @@ defineProps({
     },
 });
 
-const form = useForm({
-    email: '',
-    password: '',
-    remember: false,
-});
-
+// Submit function for the login form
 const submit = () => {
     form.post(route('login'), {
-        onFinish: () => form.reset('password'),
+        // Callback executed after the form submission finishes (success or error)
+        onFinish: () => form.reset('password'), // Reset password field after submission
+        // Callback executed only on successful form submission
+        onSuccess: () => {
+            if (form.remember) {
+                // If "remember me" is checked, save email and remember state to local storage
+                localStorage.setItem('rememberMe', JSON.stringify({
+                    email: form.email,
+                    remember: form.remember
+                }));
+            } else {
+                // If "remember me" is not checked, remove any previously saved data
+                localStorage.removeItem('rememberMe');
+            }
+        }
     });
 };
 
 // Language switching with persistence
 const changeLanguage = (language) => {
     locale.value = language;
-    localStorage.setItem('language', language);
+    localStorage.setItem('language', language); // Persist language preference
 };
 </script>
 
@@ -64,7 +98,6 @@ const changeLanguage = (language) => {
     <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 bg-base-100">
         <Head :title="t('login')" />
 
-        <!-- Theme Toggle Button -->
         <button
             class="absolute top-4 right-4 btn btn-ghost btn-circle"
             @click="toggleTheme"
@@ -83,7 +116,6 @@ const changeLanguage = (language) => {
         </div>
 
         <div class="w-full sm:max-w-md mt-6 px-6 py-4 bg-base-100 shadow-md overflow-hidden sm:rounded-lg">
-            <!-- Language Switcher -->
             <div class="flex justify-end mb-4">
                 <div class="dropdown dropdown-end">
                     <label tabindex="0" class="btn btn-ghost btn-sm">
