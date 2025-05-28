@@ -4,17 +4,17 @@ use App\Http\Controllers\GraphicController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RouteController;
 use Illuminate\Foundation\Application;
-use Illuminate\Support\Facades\Route; // Now we will rely on this import
+use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use App\Http\Controllers\CSVImportController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\RegisteredUserController;
-use App\Models\Route as ModelRoute; // This alias is why we need to be careful with 'Route'
+use App\Models\Route as ModelRoute;
 use App\Models\Stop;
 use App\Models\StopTime;
 use App\Models\Trip;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log; // Make sure Log facade is imported
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 use App\Http\Controllers\SavedRouteController;
 use App\Http\Controllers\StopTimeController;
@@ -86,7 +86,7 @@ Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id
     // Fetch all trips for the route
     $trips = Trip::where('route_id', $route_id)->get();
 
-    // Enhance each trip with first and last stop names and stop sequence
+
     $enhancedTrips = $trips->map(function ($trip) {
         // Get all stops for this trip with their sequence
         $tripStops = DB::table('stop_times')
@@ -110,7 +110,7 @@ Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id
         return $trip;
     })->filter(); // Remove null entries
 
-    // If we have a selected trip, use its stop sequence as reference
+    // If selected trip, use its stop sequence as reference
     $referenceSequence = null;
     if ($trip_id) {
         $selectedTrip = $enhancedTrips->firstWhere('trip_id', $trip_id);
@@ -126,7 +126,7 @@ Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id
         return $group->first();
     });
 
-    // If we have a reference sequence, filter out trips with different sequences
+    // If reference sequence, filter out trips with different sequences
     if ($referenceSequence) {
         $groupedTrips = $groupedTrips->filter(function ($trip) use ($referenceSequence) {
             return $trip->stop_sequence == $referenceSequence;
@@ -275,10 +275,10 @@ Route::get('/stop/times/{stop_id}', function (Request $request, $stop_id) {
 
 // Get Stop Times by Departure Time
 Route::get('/stoptimes', function (Request $request) {
-    // This route now expects a specific trip_id directly from the frontend.
-    $trip_id = $request->query('trip_id'); // This is the specific trip_id to fetch details for
-    $stop_id = $request->query('stop_id'); // The stop_id that was clicked (for context/validation)
-    $departure_time = $request->query('departure_time'); // The departure time that was clicked (for context/validation)
+
+    $trip_id = $request->query('trip_id');
+    $stop_id = $request->query('stop_id');
+    $departure_time = $request->query('departure_time');
 
     Log::info('Request received for /stoptimes. Specific Trip ID: ' . $trip_id . ', Stop ID: ' . $stop_id . ', Departure Time: ' . $departure_time);
 
@@ -300,7 +300,7 @@ Route::get('/stoptimes', function (Request $request) {
     $foundRouteId = $tripDetails->route_id;
     $foundShapeId = $tripDetails->shape_id;
 
-    // Now, fetch all stop times for this specific provided trip_id
+    //fetches all stop times for this specific provided trip_id
     $stopTimes = DB::table('stop_times')
         ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
         ->where('stop_times.trip_id', $trip_id) // Use the specific trip_id directly
@@ -357,7 +357,7 @@ Route::get('/route/map/{route_id}/{trip_id}', function ($route_id, $trip_id) {
         ->orderBy('stop_times.stop_sequence')
         ->get(['stops.stop_id', 'stops.stop_name', 'stops.stop_lat', 'stops.stop_lon', 'stop_times.stop_sequence']);
 
-    // ✅ Get all GTFS stops
+    // Get all GTFS stops
     $allStops = Stop::orderBy('stop_name')->get(['stop_id', 'stop_name', 'stop_lat', 'stop_lon']);
 
     return Inertia::render('RouteMap', [
@@ -365,7 +365,7 @@ Route::get('/route/map/{route_id}/{trip_id}', function ($route_id, $trip_id) {
         'trip' => $trip,
         'shapePoints' => $shapePoints,
         'stops' => $stops,
-        'allStops' => $allStops // ✅ Pass to Vue
+        'allStops' => $allStops //  Pass to Vue
     ]);
 })->name('route.map');
 
@@ -420,15 +420,33 @@ Route::post('/import-stop-times', [GraphicController::class, 'importStopTimes'])
 require __DIR__.'/auth.php';
 
 // Additional Controllers
-Route::post('/search-route', [RouteController::class, 'searchRoute'])->name('searchRoute');
+Route::match(['get', 'post'], '/search-route', [RouteController::class, 'searchRoute'])->name('searchRoute');
 Route::get('/route/{id}', [RouteController::class, 'show'])->name('route.show');
 
-
-Route::post('/search-route', [RouteController::class, 'searchRoute'])->name('searchRoute');
-Route::post('/bus/search', [RouteController::class, 'searchBus'])->name('bus.search');
+// Stop search endpoints
+Route::get('/api/possible-destinations', [RouteController::class, 'getPossibleDestinations'])->name('api.possible-destinations');
+Route::match(['get', 'post'], '/bus/search', [RouteController::class, 'searchBus'])->name('bus.search');
+Route::match(['get', 'post'], '/trolleybus/search', [RouteController::class, 'searchTrolleybus'])->name('trolleybus.search');
+Route::match(['get', 'post'], '/tram/search', [RouteController::class, 'searchTram'])->name('tram.search');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/save-stop-times', [SavedRouteController::class, 'store'])->name('save.stop.times');
     Route::get('/my-saved-times', [SavedRouteController::class, 'index'])->name('my.saved.times');
     Route::delete('/my-saved-times/{id}', [SavedRouteController::class, 'destroy'])->name('my.saved.times.delete');
 });
+
+Route::get('/route/details/{route_id}/{stop_id}/pdf', [PDFController::class, 'downloadStopTimes'])->name('route.stoptimes.pdf');
+
+Route::get('/api/calendar-dates/{trip_id}', function ($trip_id) {
+    $trip = Trip::where('trip_id', $trip_id)->first();
+    if (!$trip) {
+        return response()->json([]);
+    }
+
+    // Get calendar dates for this service
+    $calendarDates = DB::table('calendar_dates')
+        ->where('service_id', $trip->service_id)
+        ->get(['date', 'exception_type']);
+
+    return response()->json($calendarDates);
+})->name('api.calendar-dates');

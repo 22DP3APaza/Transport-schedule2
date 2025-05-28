@@ -2,6 +2,7 @@
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { vClickOutside } from '@/Directives/clickOutside';
 
 const { t, locale } = useI18n();
 const page = usePage();
@@ -17,12 +18,80 @@ const stopTimesData = ref({ workdays: [], weekends: [] });
 const hasWorkdaysData = ref(false);
 const hasWeekendsData = ref(false);
 const showWorkdays = ref(true);
-const selectedTimes = ref([]); // This will hold the times selected in the modal
+const selectedTimes = ref([]);
 const showSaveModal = ref(false);
 const currentTime = ref(new Date());
 const currentTheme = ref('light');
+const showTableView = ref(false);
 
-// === Computed Property for Route Display Name ===
+// Add directive
+const directives = {
+    'click-outside': vClickOutside,
+};
+
+// Add new computed properties for table data
+const workdayTableData = computed(() => {
+    if (!stopTimesData.value.workdays.length) return {
+        hours: [],
+        minutesByHour: {}
+    };
+
+    const hourlyTimes = {};
+    let minHour = 24;
+    let maxHour = 0;
+
+    stopTimesData.value.workdays.forEach(time => {
+        const [hours, minutes] = time.departure_time.split(':');
+        const hour = parseInt(hours);
+        minHour = Math.min(minHour, hour);
+        maxHour = Math.max(maxHour, hour);
+
+        if (!hourlyTimes[hour]) {
+            hourlyTimes[hour] = [];
+        }
+        hourlyTimes[hour].push(minutes);
+    });
+
+    // Create array of hours from min to max
+    const hours = Array.from({ length: maxHour - minHour + 1 }, (_, i) => minHour + i);
+
+    return {
+        hours,
+        minutesByHour: hourlyTimes
+    };
+});
+
+const weekendTableData = computed(() => {
+    if (!stopTimesData.value.weekends.length) return {
+        hours: [],
+        minutesByHour: {}
+    };
+
+    const hourlyTimes = {};
+    let minHour = 24;
+    let maxHour = 0;
+
+    stopTimesData.value.weekends.forEach(time => {
+        const [hours, minutes] = time.departure_time.split(':');
+        const hour = parseInt(hours);
+        minHour = Math.min(minHour, hour);
+        maxHour = Math.max(maxHour, hour);
+
+        if (!hourlyTimes[hour]) {
+            hourlyTimes[hour] = [];
+        }
+        hourlyTimes[hour].push(minutes);
+    });
+
+    // Create array of hours from min to max
+    const hours = Array.from({ length: maxHour - minHour + 1 }, (_, i) => minHour + i);
+
+    return {
+        hours,
+        minutesByHour: hourlyTimes
+    };
+});
+
 const routeDisplayName = computed(() => {
     if (stops.value.length > 0) {
         const firstStopName = stops.value[0]?.stop_name || '';
@@ -56,9 +125,8 @@ const viewRouteOnMap = () => {
     router.visit(`/route/map/${routedata.value.route_id}/${selectedTrip.value.trip_id}`);
 };
 
-// IMPORTANT CHANGE: handleTimeClick now expects the full 'time' object which includes 'trip_id'
+
 const handleTimeClick = (time) => {
-    // Ensure both departure_time and trip_id are available
     if (!selectedStop.value || !time.departure_time || !time.trip_id) {
         console.error(t('missingDataForTimeClick'), time);
         return;
@@ -67,8 +135,7 @@ const handleTimeClick = (time) => {
     // Pass the specific trip_id along with stop_id and departure_time
     router.visit(`/stoptimes?trip_id=${time.trip_id}&stop_id=${selectedStop.value.stop_id}&departure_time=${time.departure_time}`, {
         onError: (errors) => {
-            // The backend now returns an empty array for no data, so 404 should be less common
-            // but this onError is still useful for other navigation errors.
+
             console.error(`${t('errorNavigating')}:`, errors);
             alert(`${t('errorNavigating')}: ${errors.message || 'Unknown error'}`);
         }
@@ -118,12 +185,12 @@ const fetchUserSavedTimes = async () => {
 const saveSelectedTimes = async () => {
     // Only allow saving if user is logged in
     if (!page.props.auth.user) {
-        console.warn(t('loginToSaveTimes')); // A new translation key for "Login to save times"
+        console.warn(t('loginToSaveTimes'));
         showSaveModal.value = false;
         return;
     }
 
-    // Ensure selectedTimes is not empty
+    // Ensures selectedTimes is not empty
     if (!selectedTrip.value || !selectedStop.value || selectedTimes.value.length === 0) {
         console.warn(t('selectTimesFirst'));
         showSaveModal.value = false;
@@ -146,7 +213,6 @@ const saveSelectedTimes = async () => {
 
         if (response.ok) {
             console.log(t('timesSavedSuccessfully'));
-            // After successful save, refresh user's saved times to reflect changes
             fetchUserSavedTimes();
             showSaveModal.value = false;
         } else {
@@ -176,20 +242,19 @@ const fetchStopTimes = async () => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-            // IMPORTANT: Pass the selectedTrip.value.trip_id to the backend
+            // Pass the selectedTrip.value.trip_id to the backend
             const response = await fetch(
                 `/stop/times/${selectedStop.value.stop_id}?type=${type}&route_id=${routedata.value.route_id}&trip_id=${selectedTrip.value.trip_id}`,
                 { signal: controller.signal }
             ).finally(() => clearTimeout(timeoutId));
 
-            // Backend now returns [] for no data, so we check for response.ok
             if (!response.ok) {
                 console.warn(`Failed to fetch ${type} schedule for stop ${selectedStop.value.stop_id} and route ${routedata.value.route_id}. Status: ${response.status}`);
                 return [];
             }
 
             const data = await response.json();
-            // Ensure data is an array before mapping
+            // Ensures data is an array before mapping
             return Array.isArray(data) ? data : [];
         } catch (error) {
             console.error(`Error fetching ${type} schedule:`, error);
@@ -205,24 +270,23 @@ const fetchStopTimes = async () => {
 
     // Process fetched data
     stopTimesData.value.workdays = workdaysData
-        .filter(t => t?.departure_time && t?.trip_id) // Ensure both are present
+        .filter(t => t?.departure_time && t?.trip_id) // Ensures both are present
         .map(t => ({
             departure_time: formatTime(t.departure_time),
-            trip_id: t.trip_id, // Keep trip_id for handleTimeClick
+            trip_id: t.trip_id,
             isFuture: isFutureTime(formatTime(t.departure_time))
         }));
     hasWorkdaysData.value = stopTimesData.value.workdays.length > 0;
 
     stopTimesData.value.weekends = weekendsData
-        .filter(t => t?.departure_time && t?.trip_id) // Ensure both are present
+        .filter(t => t?.departure_time && t?.trip_id) // Ensures both are present
         .map(t => ({
             departure_time: formatTime(t.departure_time),
-            trip_id: t.trip_id, // Keep trip_id for handleTimeClick
+            trip_id: t.trip_id,
             isFuture: isFutureTime(formatTime(t.departure_time))
         }));
     hasWeekendsData.value = stopTimesData.value.weekends.length > 0;
 
-    // Set initial display based on available data
     if (hasWorkdaysData.value) {
         showWorkdays.value = true;
         stopTimes.value = stopTimesData.value.workdays;
@@ -275,7 +339,7 @@ watch(showSaveModal, (newValue) => {
     if (newValue) {
         fetchUserSavedTimes(); // Refresh saved times when modal opens
     } else {
-        selectedTimes.value = []; // Clear selections when modal closes
+        selectedTimes.value = [];
     }
 });
 
@@ -291,7 +355,7 @@ const updateTime = () => {
 
 let timeInterval = null;
 onMounted(() => {
-    timeInterval = setInterval(updateTime, 60000);
+    timeInterval = setInterval(updateTime, 1000); // Update every second instead of every minute
     updateTime(); // Initial update
 
     const savedTheme = localStorage.getItem('theme');
@@ -429,6 +493,14 @@ const getTransportTypeFromRouteId = (id) => {
                 <button @click="viewRouteOnMap" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded inline-flex items-center">
                     <span>{{ t('viewOnMap') }}</span>
                 </button>
+                <a
+                    v-if="selectedStop"
+                    :href="`/route/details/${routedata.route_id}/${selectedStop.stop_id}/pdf?lang=${locale}`"
+                    class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded inline-flex items-center"
+                    target="_blank"
+                >
+                    <span>{{ t('downloadPDF') }}</span>
+                </a>
             </div>
         </div>
 
@@ -440,7 +512,7 @@ const getTransportTypeFromRouteId = (id) => {
             >
                 {{ routeDisplayName }} </div>
             <div class="text-lg font-semibold text-base-content">
-                {{ currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) }}
+                {{ currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) }}
             </div>
         </div>
 
@@ -449,7 +521,9 @@ const getTransportTypeFromRouteId = (id) => {
             <select
                 id="trip-select"
                 v-model="selectedTrip"
-                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-base-content/20 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md bg-gray-700 text-base-content" :aria-label="t('selectTrip')"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-base-content/20 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md text-base-content"
+                :class="{ 'bg-gray-700': currentTheme === 'dark', 'bg-gray-100': currentTheme === 'light' }"
+                :aria-label="t('selectTrip')"
             >
                 <option v-for="trip in trips" :key="trip.trip_id" :value="trip">
                     {{ trip.full_name }}
@@ -462,7 +536,9 @@ const getTransportTypeFromRouteId = (id) => {
             <select
                 id="stop-select"
                 v-model="selectedStop"
-                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-base-content/20 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md bg-gray-700 text-base-content" :aria-label="t('selectStop')"
+                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-base-content/20 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm rounded-md text-base-content"
+                :class="{ 'bg-gray-700': currentTheme === 'dark', 'bg-gray-100': currentTheme === 'light' }"
+                :aria-label="t('selectStop')"
             >
                 <option v-for="stop in stops" :key="stop.stop_id" :value="stop">
                     {{ stop.stop_name }}
@@ -495,9 +571,17 @@ const getTransportTypeFromRouteId = (id) => {
                 >
                     {{ t('weekends') }}
                 </button>
+                <button
+                    @click="showTableView = !showTableView"
+                    class="btn btn-sm ml-4 border-base-content/20 hover:border-base-content/40"
+                    :class="{'btn-primary': showTableView, 'btn-outline': !showTableView}"
+                >
+                    <img src="/images/table.svg" alt="Table view" class="w-4 h-4" :class="{'filter invert': showTableView && currentTheme === 'light'}">
+                </button>
             </div>
 
-            <div v-if="stopTimes.length > 0" class="grid grid-cols-[repeat(auto-fill,minmax(60px,1fr))] gap-1 justify-items-center">
+            <!-- Grid View -->
+            <div v-if="!showTableView && stopTimes.length > 0" class="grid grid-cols-[repeat(auto-fill,minmax(60px,1fr))] gap-1 justify-items-center">
                 <button
                     v-for="(time, index) in stopTimes"
                     :key="`${time.trip_id}-${time.departure_time}-${index}`"
@@ -513,7 +597,50 @@ const getTransportTypeFromRouteId = (id) => {
                     {{ time.departure_time }}
                 </button>
             </div>
-            <div v-else class="text-base-content/70">
+
+            <!-- Table View -->
+            <div v-if="showTableView" class="overflow-x-auto">
+                <table class="table table-compact w-full">
+                    <thead>
+                        <tr class="text-center">
+                            <th v-for="hour in (showWorkdays ? workdayTableData.hours : weekendTableData.hours)"
+                                :key="hour"
+                                class="px-2 py-2 bg-base-200 text-base-content font-bold sticky top-0"
+                            >
+                                {{ hour.toString().padStart(2, '0') }}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td v-for="hour in (showWorkdays ? workdayTableData.hours : weekendTableData.hours)"
+                                :key="hour"
+                                class="p-2 border border-base-300 align-top"
+                            >
+                                <div class="flex flex-col items-center space-y-1">
+                                    <button
+                                        v-for="minute in (showWorkdays ? workdayTableData.minutesByHour[hour] : weekendTableData.minutesByHour[hour]) || []"
+                                        :key="`${hour}-${minute}`"
+                                        @click="handleTimeClick({
+                                            departure_time: `${hour.toString().padStart(2, '0')}:${minute}`,
+                                            trip_id: stopTimes.find(t => t.departure_time === `${hour.toString().padStart(2, '0')}:${minute}`)?.trip_id
+                                        })"
+                                        class="w-full btn btn-xs border-none bg-transparent hover:bg-primary hover:text-primary-content transition px-2 py-1"
+                                        :class="{
+                                            'text-base-content': isFutureTime(`${hour}:${minute}`),
+                                            'text-base-content/70': !isFutureTime(`${hour}:${minute}`)
+                                        }"
+                                    >
+                                        {{ minute }}
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div v-else-if="!stopTimes.length" class="text-base-content/70">
                 <p>{{ t('noStopTimesAvailable') }}</p>
             </div>
 

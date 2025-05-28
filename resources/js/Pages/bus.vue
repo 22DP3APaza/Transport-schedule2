@@ -82,7 +82,7 @@ const sortedRoutes = computed(() =>
 );
 
 // Watch for changes in from input
-watch(from, (newVal) => {
+watch(from, async (newVal) => {
   if (newVal.length > 1) {
     filteredFromStops.value = stops.value.filter(stop =>
       stop.stop_name.toLowerCase().includes(newVal.toLowerCase())
@@ -94,12 +94,23 @@ watch(from, (newVal) => {
 });
 
 // Watch for changes in to input
-watch(to, (newVal) => {
-  if (newVal.length > 1) {
-    filteredToStops.value = stops.value.filter(stop =>
+watch(to, async (newVal) => {
+  if (newVal.length > 1 && from.value) {
+    try {
+      const response = await axios.get('/api/possible-destinations', {
+        params: {
+          from: from.value,
+          type: 'bus'
+        }
+      });
+      filteredToStops.value = response.data.filter(stop =>
       stop.stop_name.toLowerCase().includes(newVal.toLowerCase())
     ).slice(0, 5);
     showToDropdown.value = filteredToStops.value.length > 0;
+    } catch (error) {
+      console.error('Error fetching possible destinations:', error);
+      filteredToStops.value = [];
+    }
   } else {
     showToDropdown.value = false;
   }
@@ -109,6 +120,9 @@ watch(to, (newVal) => {
 const selectFromStop = (stop) => {
   from.value = stop.stop_name;
   showFromDropdown.value = false;
+  // Clear the 'to' field when selecting a new 'from' stop
+  to.value = '';
+  filteredToStops.value = [];
 };
 
 // Select a stop from the to dropdown
@@ -135,16 +149,6 @@ const searchRoute = () => {
     router.post('/bus/search', {
       from: from.value,
       to: to.value
-    }, {
-      preserveState: true,
-      onSuccess: () => {
-        // Handled by the backend
-      },
-      onError: (errors) => {
-        if (errors.error) {
-          alert(errors.error);
-        }
-      }
     });
   } else {
     alert(t('pleaseEnterValues'));

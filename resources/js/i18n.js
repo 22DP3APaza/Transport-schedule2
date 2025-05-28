@@ -45,7 +45,26 @@ const messages = {
     latvian: 'Latvian',
     login: 'Log in',
     logout: 'Log out',
-    adminPanel: 'Admin Panel',
+    adminPanel: {
+      title: 'Admin Panel',
+      home: 'Home',
+      statistics: 'Statistics',
+      users: 'Users',
+      dashboard: {
+        title: 'Dashboard Statistics',
+        totalUsers: 'Total Users',
+        totalRoutes: 'Total Routes',
+        recentUsers: 'Recent Users',
+        recentRoutes: 'Recent Routes',
+        table: {
+          username: 'Username',
+          email: 'Email',
+          joined: 'Joined',
+          routeNumber: 'Route Number',
+          name: 'Name'
+        }
+      }
+    },
     profileSettings: 'Profile Settings',
     username: 'Username',
     saveChanges: 'Save Changes',
@@ -105,6 +124,7 @@ const messages = {
 
     //maps
     viewOnMap: "View on Map",
+    downloadPDF: "Download PDF",
     viewRouteOnMap: "View this route on Google Maps",
     stopSequence: 'Sequence',
     lastStop: 'Last Stop',
@@ -175,7 +195,16 @@ const messages = {
       unique: 'The {attribute} has already been taken.',
       string: 'The {attribute} field must be a string.',
       max: 'The {attribute} field must not be greater than {max} characters.',
-    }
+    },
+
+    hour: 'Hour',
+    minutes: 'Minutes',
+    tableView: 'Table View',
+    gridView: 'Grid View',
+
+    calendar: 'Calendar',
+    selectDate: 'Select Date',
+    dateNotAvailable: 'Service not available on this date',
   },
   lv: {
     // Transport types
@@ -221,7 +250,26 @@ const messages = {
     latvian: 'Latviešu',
     login: 'Pieteikties',
     logout: 'Izrakstīties',
-    adminPanel: 'Administrācijas panelis',
+    adminPanel: {
+      title: 'Administratora Panelis',
+      home: 'Sākums',
+      statistics: 'Statistika',
+      users: 'Lietotāji',
+      dashboard: {
+        title: 'Statistikas Pārskats',
+        totalUsers: 'Kopējais Lietotāju Skaits',
+        totalRoutes: 'Kopējais Maršrutu Skaits',
+        recentUsers: 'Jaunākie Lietotāji',
+        recentRoutes: 'Jaunākie Maršruti',
+        table: {
+          username: 'Lietotājvārds',
+          email: 'E-pasts',
+          joined: 'Pievienojās',
+          routeNumber: 'Maršruta Numurs',
+          name: 'Nosaukums'
+        }
+      }
+    },
     profileSettings: 'Profila iestatījumi',
     username: 'Lietotājvārds',
     saveChanges: 'Saglabāt izmaiņas',
@@ -281,6 +329,7 @@ const messages = {
 
     //maps
     viewOnMap: "Skatīt kartē",
+    downloadPDF: "Lejupielādēt PDF",
     viewRouteOnMap: "Skatīt šo maršrutu Google Maps",
     stopSequence: 'Secība',
     lastStop: 'Pēdējā pietura',
@@ -351,14 +400,25 @@ const messages = {
       unique: 'Lauks "{attribute}" jau ir aizņemts.',
       string: 'Laukam "{attribute}" jābūt teksta virknei.',
       max: 'Lauks "{attribute}" nedrīkst pārsniegt {max} rakstzīmes.',
-    }
+    },
+
+    hour: 'Stunda',
+    minutes: 'Minūtes',
+    tableView: 'Tabulas Skats',
+    gridView: 'Režģa Skats',
+
+    calendar: 'Kalendārs',
+    selectDate: 'Izvēlēties Datumu',
+    dateNotAvailable: 'Pakalpojums šajā datumā nav pieejams',
   }
 }
 
 // Create I18n instance
+const savedLocale = localStorage.getItem('locale') || 'en'
+
 const i18n = createI18n({
   legacy: false,
-  locale: 'en',
+  locale: savedLocale,
   fallbackLocale: 'en',
   messages
 })

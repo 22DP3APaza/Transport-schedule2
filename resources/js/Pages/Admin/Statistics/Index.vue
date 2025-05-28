@@ -8,18 +8,18 @@ defineProps({
 </script>
 
 <template>
-    <Head title="Statistics" />
+    <Head :title="$t('adminPanel.statistics')" />
 
     <AdminLayout>
         <div class="p-8">
-            <h1 class="text-3xl font-bold mb-8">Dashboard Statistics</h1>
+            <h1 class="text-3xl font-bold mb-8">{{ $t('adminPanel.dashboard.title') }}</h1>
 
             <!-- Statistics Cards -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 <!-- Total Users -->
                 <div class="stats shadow">
                     <div class="stat">
-                        <div class="stat-title">Total Users</div>
+                        <div class="stat-title">{{ $t('adminPanel.dashboard.totalUsers') }}</div>
                         <div class="stat-value">{{ statistics.total_users }}</div>
                     </div>
                 </div>
@@ -27,7 +27,7 @@ defineProps({
                 <!-- Total Routes -->
                 <div class="stats shadow">
                     <div class="stat">
-                        <div class="stat-title">Total Routes</div>
+                        <div class="stat-title">{{ $t('adminPanel.dashboard.totalRoutes') }}</div>
                         <div class="stat-value">{{ statistics.total_routes }}</div>
                     </div>
                 </div>
@@ -38,14 +38,14 @@ defineProps({
                 <!-- Recent Users -->
                 <div class="card bg-base-100 shadow-xl">
                     <div class="card-body">
-                        <h2 class="card-title">Recent Users</h2>
+                        <h2 class="card-title">{{ $t('adminPanel.dashboard.recentUsers') }}</h2>
                         <div class="overflow-x-auto">
                             <table class="table table-zebra">
                                 <thead>
                                     <tr>
-                                        <th>Username</th>
-                                        <th>Email</th>
-                                        <th>Joined</th>
+                                        <th>{{ $t('adminPanel.dashboard.table.username') }}</th>
+                                        <th>{{ $t('adminPanel.dashboard.table.email') }}</th>
+                                        <th>{{ $t('adminPanel.dashboard.table.joined') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -63,13 +63,13 @@ defineProps({
                 <!-- Recent Routes -->
                 <div class="card bg-base-100 shadow-xl">
                     <div class="card-body">
-                        <h2 class="card-title">Recent Routes</h2>
+                        <h2 class="card-title">{{ $t('adminPanel.dashboard.recentRoutes') }}</h2>
                         <div class="overflow-x-auto">
                             <table class="table table-zebra">
                                 <thead>
                                     <tr>
-                                        <th>Route Number</th>
-                                        <th>Name</th>
+                                        <th>{{ $t('adminPanel.dashboard.table.routeNumber') }}</th>
+                                        <th>{{ $t('adminPanel.dashboard.table.name') }}</th>
                                     </tr>
                                 </thead>
                                 <tbody>

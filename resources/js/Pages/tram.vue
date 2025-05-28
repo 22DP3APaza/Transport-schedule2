@@ -94,12 +94,23 @@ watch(from, (newVal) => {
 });
 
 // Watch for changes in to input
-watch(to, (newVal) => {
-  if (newVal.length > 1) {
-    filteredToStops.value = stops.value.filter(stop =>
+watch(to, async (newVal) => {
+  if (newVal.length > 1 && from.value) {
+    try {
+      const response = await axios.get('/api/possible-destinations', {
+        params: {
+          from: from.value,
+          type: 'tram'
+        }
+      });
+      filteredToStops.value = response.data.filter(stop =>
       stop.stop_name.toLowerCase().includes(newVal.toLowerCase())
     ).slice(0, 5);
     showToDropdown.value = filteredToStops.value.length > 0;
+    } catch (error) {
+      console.error('Error fetching possible destinations:', error);
+      filteredToStops.value = [];
+    }
   } else {
     showToDropdown.value = false;
   }
@@ -132,10 +143,9 @@ const switchStops = () => {
 // Search for the matching route and navigate
 const searchRoute = () => {
   if (from.value && to.value) {
-    router.post('/search-route', {
+    router.post('/tram/search', {
       from: from.value,
-      to: to.value,
-      type: 'tram'
+      to: to.value
     });
   } else {
     alert(t('pleaseEnterValues'));

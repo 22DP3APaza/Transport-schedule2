@@ -18,10 +18,11 @@ const isLoadingStops = ref(false);
 const transportType = ref('bus'); // Default transport type
 const showTransportDropdown = ref(false); // Control transport type dropdown visibility
 
-// New state for displaying all user's saved times
+// for displaying all user's saved times
 const userSavedTimes = ref([]);
 
 const transportTypes = [
+    { id: 'all', name: t('all'), color: '#3490dc' },
     { id: 'bus', name: t('bus'), color: '#DCA223' },
     { id: 'trolleybus', name: t('trolleybus'), color: '#008DCA' },
     { id: 'tram', name: t('tram'), color: '#E6000B' },
@@ -30,34 +31,38 @@ const transportTypes = [
 
 // Extract stop names from route names (format: "Stop1 - Stop2")
 const extractStopsFromRoutes = (routes) => {
-    const routeStops = [];
+    const routeStops = new Set(); // Use a Set to automatically handle duplicates
     routes.forEach(route => {
         if (route.route_long_name.includes(' - ')) {
             const [stop1, stop2] = route.route_long_name.split(' - ');
-            routeStops.push({
-                stop_name: stop1.trim(),
-                from_route: true
-            });
-            routeStops.push({
-                stop_name: stop2.trim(),
-                from_route: true
-            });
+            routeStops.add(stop1.trim());
+            routeStops.add(stop2.trim());
         }
     });
-    return routeStops;
+    return Array.from(routeStops).map(stop_name => ({
+        stop_name,
+        from_route: true
+    }));
 };
 
-// Combine stops from API and routes, ensuring uniqueness
+// Combine stops from API and routes, ensuring uniqueness by stop name
 const combineStops = (apiStops, routeStops) => {
-    const allStops = [...apiStops];
+    const uniqueStops = new Map();
 
+    // First add all API stops
+    apiStops.forEach(stop => {
+        uniqueStops.set(stop.stop_name.toLowerCase(), stop);
+    });
+
+    // Then only add route stops if they don't exist in API stops
     routeStops.forEach(routeStop => {
-        if (!allStops.some(s => s.stop_name.toLowerCase() === routeStop.stop_name.toLowerCase())) {
-            allStops.push(routeStop);
+        const lowerName = routeStop.stop_name.toLowerCase();
+        if (!uniqueStops.has(lowerName)) {
+            uniqueStops.set(lowerName, routeStop);
         }
     });
 
-    return allStops;
+    return Array.from(uniqueStops.values());
 };
 
 // Fetch stops data and combine with stops extracted from routes
@@ -65,7 +70,7 @@ const fetchStops = async () => {
     try {
         isLoadingStops.value = true;
         const [stopsResponse] = await Promise.all([
-            axios.get('/api/stops').catch(() => ({ data: [] })), // Fallback empty array if API fails
+            axios.get('/api/stops').catch(() => ({ data: [] })),
         ]);
 
         // Get unique stops from API
@@ -89,8 +94,9 @@ const fetchStops = async () => {
 };
 
 // Watch for changes in from input
-watch(from, (newVal) => {
+watch(from, async (newVal) => {
     if (newVal.length > 1) {
+        // Search in all stops (both API and route-extracted stops)
         filteredFromStops.value = stops.value.filter(stop =>
             stop.stop_name.toLowerCase().includes(newVal.toLowerCase())
         ).slice(0, 5);
@@ -101,12 +107,61 @@ watch(from, (newVal) => {
 });
 
 // Watch for changes in to input
-watch(to, (newVal) => {
-    if (newVal.length > 1) {
-        filteredToStops.value = stops.value.filter(stop =>
-            stop.stop_name.toLowerCase().includes(newVal.toLowerCase())
-        ).slice(0, 5);
-        showToDropdown.value = filteredToStops.value.length > 0;
+watch(to, async (newVal) => {
+    if (newVal.length > 1 && from.value) {
+        try {
+            // First try to get possible destinations from the API
+            const response = await axios.get('/api/possible-destinations', {
+                params: {
+                    from: from.value,
+                    type: transportType.value
+                }
+            });
+
+            // Get stops from API response
+            let possibleStops = response.data;
+
+            // Also search in route names for potential destinations
+            const routeNameStops = stops.value.filter(stop =>
+                stop.from_route &&
+                stop.stop_name.toLowerCase().includes(newVal.toLowerCase()) &&
+                stop.stop_name.toLowerCase() !== from.value.toLowerCase()
+            );
+
+            // Combine API results with route name stops, ensuring uniqueness
+            const uniqueStops = new Map();
+
+            // Add API stops first
+            possibleStops.forEach(stop => {
+                uniqueStops.set(stop.stop_name.toLowerCase(), stop);
+            });
+
+            // Add route name stops if they don't exist
+            routeNameStops.forEach(stop => {
+                const lowerName = stop.stop_name.toLowerCase();
+                if (!uniqueStops.has(lowerName)) {
+                    uniqueStops.set(lowerName, stop);
+                }
+            });
+
+            // Convert back to array and filter by search term
+            filteredToStops.value = Array.from(uniqueStops.values())
+                .filter(stop => stop.stop_name.toLowerCase().includes(newVal.toLowerCase()))
+                .slice(0, 5);
+
+            showToDropdown.value = filteredToStops.value.length > 0;
+        } catch (error) {
+            console.error('Error fetching possible destinations:', error);
+
+            // Fallback to route name stops if API fails
+            filteredToStops.value = stops.value
+                .filter(stop =>
+                    stop.from_route &&
+                    stop.stop_name.toLowerCase().includes(newVal.toLowerCase()) &&
+                    stop.stop_name.toLowerCase() !== from.value.toLowerCase()
+                )
+                .slice(0, 5);
+        }
     } else {
         showToDropdown.value = false;
     }
@@ -116,6 +171,9 @@ watch(to, (newVal) => {
 const selectFromStop = (stop) => {
     from.value = stop.stop_name;
     showFromDropdown.value = false;
+    // Clear the 'to' field when changing 'from' stop
+    to.value = '';
+    filteredToStops.value = [];
 };
 
 // Select a stop from the to dropdown
@@ -134,17 +192,21 @@ const switchStops = () => {
 // Search for routes and navigate to the appropriate transport page
 const searchRoute = () => {
     if (from.value && to.value) {
-        router.post(`/${transportType.value}`, {
-            from: from.value,
-            to: to.value,
-        }, {
-            preserveState: true,
-            onSuccess: () => {
-                // This will be handled by the backend
-            }
-        });
+        if (transportType.value === 'all') {
+            // Search in all transport types
+            router.post('/search-route', {
+                from: from.value,
+                to: to.value,
+                type: 'all'
+            });
+        } else {
+            // Search in specific transport type
+            router.post(`/${transportType.value}/search`, {
+                from: from.value,
+                to: to.value
+            });
+        }
     } else {
-        // Replaced alert with a custom modal/message box in a real app
         alert(t('pleaseEnterValues'));
     }
 };
@@ -175,7 +237,7 @@ const currentTransportName = computed(() => {
     return type ? type.name : t('bus');
 });
 
-// --- Function: Fetch ALL User's Saved Times for the table display ---
+//Fetch ALL User's Saved Times for the table display ---
 const fetchAllUserSavedTimes = async () => {
     if (!page.props.auth.user) {
         userSavedTimes.value = [];
@@ -185,7 +247,6 @@ const fetchAllUserSavedTimes = async () => {
         const response = await fetch('/my-saved-times'); // Fetch all saved times for the user
         if (response.ok) {
             const data = await response.json();
-            // Assuming the API now returns route_id, route_short_name, route_color, route_long_name and stop_name
             userSavedTimes.value = data;
         } else {
             console.error('Error fetching all user saved times:', response.statusText);
@@ -204,8 +265,7 @@ const deleteSavedTime = async (savedTimeId) => {
         return;
     }
 
-    // Use a custom modal for confirmation in a real app instead of confirm()
-    // For this example, we'll use a simple alert for demonstration
+
     if (!confirm(t('confirmDeleteSavedTime'))) {
         return;
     }
@@ -222,7 +282,7 @@ const deleteSavedTime = async (savedTimeId) => {
             console.log(t('savedTimeDeletedSuccessfully'));
             fetchAllUserSavedTimes(); // Refresh the table data after deletion
         } else {
-            // Check if the response is JSON before parsing
+            // Check if the response is JSON
             const contentType = response.headers.get('Content-Type');
             let errorMessage = response.statusText;
 
@@ -235,17 +295,17 @@ const deleteSavedTime = async (savedTimeId) => {
             }
 
             console.error(t('errorDeletingSavedTime'), errorMessage);
-            // Replaced alert with a custom modal/message box in a real app
+
             alert(`${t('errorDeletingSavedTime')}: ${errorMessage}`);
         }
     } catch (error) {
         console.error('Error deleting saved time:', error);
-        // Replaced alert with a custom modal/message box in a real app
+
         alert(`${t('errorDeletingSavedTime')}: ${error.message}`);
     }
 };
 
-// --- New Function: Navigate to Route Details from Saved Time ---
+//Navigate to Route Details from Saved Time
 const viewSavedRoute = (saved) => {
     if (!saved.route_id || !saved.trip_id || !saved.stop_id) {
         console.error('Missing route, trip, or stop ID for navigation:', saved);
@@ -253,7 +313,6 @@ const viewSavedRoute = (saved) => {
         return;
     }
     // Navigate to the route details page, passing route_id, trip_id, and selected_stop_id
-    // The routedetails.vue component will then fetch its own data based on these IDs
     router.visit(`/route/details/${saved.route_id}/${saved.trip_id}?selected_stop_id=${saved.stop_id}`);
 };
 
