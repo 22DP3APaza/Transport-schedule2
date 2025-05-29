@@ -115,6 +115,12 @@ const getTransportTypeFromRouteId = (routeId) => {
             {{ t('train') }}
           </a>
         </div>
+        <div class="navbar bg-base-100">
+          <a href="/news" :class="['btn btn-ghost text-xl', isActive('/news') ? 'text-white' : '']"
+             :style="isActive('/news') ? { backgroundColor: '#4A5568' } : {}">
+            {{ t('news') }}
+          </a>
+        </div>
       </div>
       <div class="navbar-end">
         <div class="dropdown dropdown-end mr-2">

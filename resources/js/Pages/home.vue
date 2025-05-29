@@ -358,7 +358,7 @@ const changeLanguage = (language) => {
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <link rel="icon" type="image/png" href="/images/logo.png">
     </Head>
-
+    
     <header class="navbar bg-base-100">
         <div class="navbar-start">
             <a href="/">
@@ -390,6 +390,12 @@ const changeLanguage = (language) => {
                 <a href="/train" :class="['btn btn-ghost text-xl', isActive('/train', 'train') ? 'text-white' : '']"
                     :style="isActive('/train', 'train') ? { backgroundColor: getTransportColor('train') } : {}">
                     {{ t('train') }}
+                </a>
+            </div>
+            <div class="navbar bg-base-100">
+                <a href="/news" :class="['btn btn-ghost text-xl', isActive('/news') ? 'text-white' : '']"
+                    :style="isActive('/news') ? { backgroundColor: '#4A5568' } : {}">
+                    {{ t('news') }}
                 </a>
             </div>
         </div>

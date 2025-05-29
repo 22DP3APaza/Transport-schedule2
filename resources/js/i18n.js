@@ -8,6 +8,7 @@ const messages = {
     tram: 'Tram',
     train: 'Train',
     home: 'Home',
+    news: 'News',
 
     // Main UI
     publicTransport: 'Public transport table',
@@ -43,8 +44,8 @@ const messages = {
     settings: 'Settings',
     english: 'English',
     latvian: 'Latvian',
-    login: 'Log in',
-    logout: 'Log out',
+    login: 'Login',
+    logout: 'Logout',
     adminPanel: {
       title: 'Admin Panel',
       home: 'Home',
@@ -205,6 +206,54 @@ const messages = {
     calendar: 'Calendar',
     selectDate: 'Select Date',
     dateNotAvailable: 'Service not available on this date',
+
+    news: 'News',
+    refresh: 'Refresh',
+    readMore: 'Read More',
+    viewOriginal: 'View Original',
+    close: 'Close',
+    confirmation: 'Confirmation',
+    doYouWantToVisitRigasSatiksme: 'Do you want to visit Rīgas Satiksme website?',
+    yes: 'Yes',
+    no: 'No',
+
+    // Admin Panel
+    adminPanel: {
+      title: 'Admin Panel',
+      home: 'Home',
+      statistics: 'Statistics',
+      users: 'Users',
+      dashboard: {
+        title: 'Dashboard Statistics',
+        totalUsers: 'Total Users',
+        totalRoutes: 'Total Routes',
+        recentUsers: 'Recent Users',
+        recentRoutes: 'Recent Routes',
+        table: {
+          username: 'Username',
+          email: 'Email',
+          joined: 'Joined',
+          routeNumber: 'Route Number',
+          name: 'Name'
+        }
+      }
+    },
+
+    // News
+    totalNews: 'Total News Articles',
+    newsCommands: 'News Commands',
+    scrapeFirstPage: 'Quick Update',
+    scrapeAllPages: 'Full Update',
+    scraping: 'Updating...',
+    quickUpdateDescription: 'Get the latest news from the first page only. Fast and efficient.',
+    fullUpdateDescription: 'Get all news from all pages. Takes longer but more thorough.',
+    quickUpdateSuccess: 'Quick update completed successfully!',
+    fullUpdateSuccess: 'Full update completed successfully!',
+    updateError: 'Error updating news. Please try again.',
+    updateWarningTitle: 'Start Update?',
+    updateWarningMessage: 'This operation might take a while to complete. Do you want to continue?',
+    continue: 'Continue',
+    cancel: 'Cancel',
   },
   lv: {
     // Transport types
@@ -213,9 +262,10 @@ const messages = {
     tram: 'Tramvajs',
     train: 'Vilciens',
     home: 'Sākums',
+    news: 'Ziņas',
 
     // Main UI
-    publicTransport: 'Publiskā transporta saraksts',
+    publicTransport: 'Sabiedriskais Transports',
     from: 'No',
     to: 'Uz',
     search: 'Meklēt',
@@ -248,10 +298,10 @@ const messages = {
     settings: 'Iestatījumi',
     english: 'Angļu',
     latvian: 'Latviešu',
-    login: 'Pieteikties',
-    logout: 'Izrakstīties',
+    login: 'Ieiet',
+    logout: 'Iziet',
     adminPanel: {
-      title: 'Administratora Panelis',
+      title: 'Administrācijas Panelis',
       home: 'Sākums',
       statistics: 'Statistika',
       users: 'Lietotāji',
@@ -410,6 +460,54 @@ const messages = {
     calendar: 'Kalendārs',
     selectDate: 'Izvēlēties Datumu',
     dateNotAvailable: 'Pakalpojums šajā datumā nav pieejams',
+
+    news: 'Ziņas',
+    refresh: 'Atjaunot',
+    readMore: 'Lasīt vairāk',
+    viewOriginal: 'Skatīt oriģinālu',
+    close: 'Aizvērt',
+    confirmation: 'Apstiprinājums',
+    doYouWantToVisitRigasSatiksme: 'Vai vēlaties apmeklēt Rīgas Satiksmes mājaslapu?',
+    yes: 'Jā',
+    no: 'Nē',
+
+    // Admin Panel
+    adminPanel: {
+      title: 'Administrācijas Panelis',
+      home: 'Sākums',
+      statistics: 'Statistika',
+      users: 'Lietotāji',
+      dashboard: {
+        title: 'Statistikas Pārskats',
+        totalUsers: 'Kopējais Lietotāju Skaits',
+        totalRoutes: 'Kopējais Maršrutu Skaits',
+        recentUsers: 'Jaunākie Lietotāji',
+        recentRoutes: 'Jaunākie Maršruti',
+        table: {
+          username: 'Lietotājvārds',
+          email: 'E-pasts',
+          joined: 'Pievienojās',
+          routeNumber: 'Maršruta Numurs',
+          name: 'Nosaukums'
+        }
+      }
+    },
+
+    // News
+    totalNews: 'Kopējais Ziņu Skaits',
+    newsCommands: 'Ziņu Komandas',
+    scrapeFirstPage: 'Ātrā Atjaunināšana',
+    scrapeAllPages: 'Pilnā Atjaunināšana',
+    scraping: 'Atjaunina...',
+    quickUpdateDescription: 'Iegūt jaunākās ziņas tikai no pirmās lapas. Ātri un efektīvi.',
+    fullUpdateDescription: 'Iegūt visas ziņas no visām lapām. Aizņem vairāk laika, bet ir pilnīgāks.',
+    quickUpdateSuccess: 'Ātrā atjaunināšana pabeigta veiksmīgi!',
+    fullUpdateSuccess: 'Pilnā atjaunināšana pabeigta veiksmīgi!',
+    updateError: 'Kļūda atjauninot ziņas. Lūdzu mēģiniet vēlreiz.',
+    updateWarningTitle: 'Sākt Atjaunināšanu?',
+    updateWarningMessage: 'Šī darbība var aizņemt kādu laiku. Vai vēlaties turpināt?',
+    continue: 'Turpināt',
+    cancel: 'Atcelt',
   }
 }
 

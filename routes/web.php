@@ -20,6 +20,7 @@ use App\Http\Controllers\SavedRouteController;
 use App\Http\Controllers\StopTimeController;
 use App\Http\Controllers\Admin\StatisticsController;
 use App\Http\Controllers\PDFController;
+use App\Http\Controllers\NewsController;
 
 // Home Page
 Route::get('/', function () {
@@ -85,7 +86,6 @@ Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id
 
     // Fetch all trips for the route
     $trips = Trip::where('route_id', $route_id)->get();
-
 
     $enhancedTrips = $trips->map(function ($trip) {
         // Get all stops for this trip with their sequence
@@ -398,6 +398,8 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::resource('users', UserController::class);
     Route::put('users/{user}/toggle-admin', [UserController::class, 'toggleAdmin'])->name('users.toggleAdmin');
     Route::get('/statistics', [StatisticsController::class, 'index'])->name('statistics');
+    Route::get('/news', [App\Http\Controllers\Admin\NewsController::class, 'index'])->name('news');
+    Route::post('/news/scrape', [App\Http\Controllers\Admin\NewsController::class, 'scrape'])->name('news.scrape');
 });
 
 
@@ -450,3 +452,13 @@ Route::get('/api/calendar-dates/{trip_id}', function ($trip_id) {
 
     return response()->json($calendarDates);
 })->name('api.calendar-dates');
+
+// News
+Route::get('/news', [NewsController::class, 'index'])->name('news.index');
+Route::get('/news/{id}', [NewsController::class, 'show'])->name('news.show');
+
+// Admin News Management
+Route::middleware(['auth', 'admin'])->group(function () {
+    Route::get('/admin/news', [App\Http\Controllers\Admin\NewsController::class, 'index'])->name('admin.news.index');
+    Route::post('/admin/news/scrape', [App\Http\Controllers\Admin\NewsController::class, 'scrape'])->name('admin.news.scrape');
+});
