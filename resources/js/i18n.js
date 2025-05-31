@@ -254,6 +254,22 @@ const messages = {
     updateWarningMessage: 'This operation might take a while to complete. Do you want to continue?',
     continue: 'Continue',
     cancel: 'Cancel',
+
+    // Train schedule
+    trainSchedule: 'Train Schedule',
+    stops: 'Stops',
+    route: 'Route',
+    direction: 'Direction',
+    selectStop: 'Select a stop',
+    pleaseSelectStop: 'Please select a stop to view departure times',
+    noTimesAvailable: 'No departure times available',
+    noServiceOnDate: 'No train service available on this date',
+    trySelectingDifferentDate: 'Please try selecting a different date',
+    checkDifferentTrip: 'Try selecting a different trip',
+    failedToLoadTimes: 'Failed to load departure times',
+    tripSchedule: 'Trip Schedule',
+    stopName: 'Stop Name',
+    clickForDetails: 'Click for trip details',
   },
   lv: {
     // Transport types
@@ -508,6 +524,22 @@ const messages = {
     updateWarningMessage: 'Šī darbība var aizņemt kādu laiku. Vai vēlaties turpināt?',
     continue: 'Turpināt',
     cancel: 'Atcelt',
+
+    // Train schedule
+    trainSchedule: 'Vilcienu Saraksts',
+    stops: 'Pieturas',
+    route: 'Maršruts',
+    direction: 'Virziens',
+    selectStop: 'Izvēlieties pieturu',
+    pleaseSelectStop: 'Lūdzu izvēlieties pieturu, lai redzētu atiešanas laikus',
+    noTimesAvailable: 'Nav pieejamu atiešanas laiku',
+    noServiceOnDate: 'Šajā datumā nav pieejams vilcienu satiksmes',
+    trySelectingDifferentDate: 'Lūdzu izvēlieties citu datumu',
+    checkDifferentTrip: 'Mēģiniet izvēlēties citu reisu',
+    failedToLoadTimes: 'Neizdevās ielādēt atiešanas laikus',
+    tripSchedule: 'Reisa Saraksts',
+    stopName: 'Pieturas Nosaukums',
+    clickForDetails: 'Klikšķiniet, lai redzētu reisa detaļas',
   }
 }
 

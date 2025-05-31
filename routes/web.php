@@ -3,6 +3,7 @@
 use App\Http\Controllers\GraphicController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RouteController;
+use App\Http\Controllers\TrainController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -57,10 +58,10 @@ Route::get('/tram', function () {
     return Inertia::render('tram', compact('routes'));
 });
 
-// Route: Train (stub)
-Route::get('/train', function () {
-    return Inertia::render('train');
-});
+// Route: Train
+Route::get('/train', [TrainController::class, 'index']);
+Route::get('/train/details/{routeId}/{tripId}', [TrainController::class, 'showDetails']);
+Route::get('/train/trip/{tripId}', [TrainController::class, 'showTripTimes']);
 
 // Login Page
 Route::get('/login', function () {
@@ -462,3 +463,9 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('/admin/news', [App\Http\Controllers\Admin\NewsController::class, 'index'])->name('admin.news.index');
     Route::post('/admin/news/scrape', [App\Http\Controllers\Admin\NewsController::class, 'scrape'])->name('admin.news.scrape');
 });
+
+// Train routes
+Route::get('/api/train/stops', [TrainController::class, 'getStops']);
+Route::get('/api/train/search-route/{fromStop}/{toStop}', [TrainController::class, 'searchRoute']);
+Route::get('/api/train/route/{routeId}/{tripId?}', [TrainController::class, 'getRouteDetails']);
+Route::get('/api/train/stop-times/{stopId}', [TrainController::class, 'getStopTimes']);

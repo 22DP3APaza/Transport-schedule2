@@ -2,30 +2,106 @@
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import axios from 'axios';
 
 const { t, locale } = useI18n();
 const page = usePage();
 const routes = ref(page.props.routes || []);
 const from = ref('');
 const to = ref('');
+const stations = ref([]);
+const filteredFromStations = ref([]);
+const filteredToStations = ref([]);
+const selectedFromStation = ref(null);
+const selectedToStation = ref(null);
+const searchResults = ref([]);
+const isLoading = ref(false);
+const selectedRoute = ref(null);
+const routeDetails = ref(null);
+
+// Load all stations
+onMounted(async () => {
+    try {
+        const response = await axios.get('/api/train/stops');
+        stations.value = response.data;
+    } catch (error) {
+        console.error('Error loading stations:', error);
+    }
+});
+
+// Filter stations based on input
+const filterStations = (input, type) => {
+    if (!input) {
+        if (type === 'from') filteredFromStations.value = [];
+        else filteredToStations.value = [];
+        return;
+    }
+
+    const filtered = stations.value.filter(station =>
+        station.stop_name.toLowerCase().includes(input.toLowerCase())
+    );
+
+    if (type === 'from') {
+        filteredFromStations.value = filtered;
+    } else {
+        filteredToStations.value = filtered;
+    }
+};
+
+// Watch for changes in from/to inputs
+const onFromInput = (e) => {
+    from.value = e.target.value;
+    filterStations(from.value, 'from');
+};
+
+const onToInput = (e) => {
+    to.value = e.target.value;
+    filterStations(to.value, 'to');
+};
+
+// Select station
+const selectStation = (station, type) => {
+    if (type === 'from') {
+        from.value = station.stop_name;
+        selectedFromStation.value = station;
+        filteredFromStations.value = [];
+    } else {
+        to.value = station.stop_name;
+        selectedToStation.value = station;
+        filteredToStations.value = [];
+    }
+};
+
+// Search for routes
+const searchRoute = async () => {
+    if (!selectedFromStation.value || !selectedToStation.value) {
+        alert(t('pleaseSelectStations'));
+        return;
+    }
+
+    isLoading.value = true;
+    try {
+        const response = await axios.get(`/api/train/search-route/${selectedFromStation.value.stop_id}/${selectedToStation.value.stop_id}`);
+        searchResults.value = response.data;
+    } catch (error) {
+        console.error('Error searching routes:', error);
+    }
+    isLoading.value = false;
+};
+
+// View route details
+const viewRouteDetails = (route) => {
+    router.visit(`/train/details/${route.route_id}/${route.trip_id}`);
+};
 
 // Sort the routes
 const sortedRoutes = computed(() =>
-    [...routes.value].sort((a, b) => Number(a.route_short_name) - Number(b.route_short_name))
+    [...routes.value].sort((a, b) => {
+        const aNum = parseInt(a.route_short_name) || 0;
+        const bNum = parseInt(b.route_short_name) || 0;
+        return aNum - bNum;
+    })
 );
-
-// Search for the matching route and navigate
-const searchRoute = () => {
-    if (from.value && to.value) {
-        router.post('/search-route', {
-            from: from.value,
-            to: to.value,
-            type: 'train'
-        });
-    } else {
-        alert(t('pleaseEnterValues'));
-    }
-};
 
 const isActive = (routeName) => {
     return page.url.startsWith(routeName);
@@ -39,7 +115,7 @@ const getTransportColor = (transportType) => {
         case 'bus': return '#DCA223';
         case 'trolleybus': return '#008DCA';
         case 'tram': return '#E6000B';
-        case 'train': return '#4B5563'; // Dark gray for train
+        case 'train': return '#4B5563';
         default: return '#3490dc';
     }
 };
@@ -108,8 +184,15 @@ const changeLanguage = (language) => {
           </a>
         </div>
         <div class="navbar bg-base-100">
-          <a href="/train" :class="['btn btn-ghost text-xl', isActive('/train') ? 'bg-blue-500 text-white' : '']">
+          <a href="/train" :class="['btn btn-ghost text-xl', isActive('/train') ? 'text-white' : '']"
+             :style="isActive('/train') ? { backgroundColor: getTransportColor('train') } : {}">
             {{ t('train') }}
+          </a>
+        </div>
+        <div class="navbar bg-base-100">
+          <a href="/news" :class="['btn btn-ghost text-xl', isActive('/news') ? 'text-white' : '']"
+             :style="isActive('/news') ? { backgroundColor: '#4A5568' } : {}">
+            {{ t('news') }}
           </a>
         </div>
       </div>
@@ -165,26 +248,104 @@ const changeLanguage = (language) => {
     </header>
 
     <div class="middle" style="display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px;">
-        <h1 style="font-size: 2em; font-weight: bold;">{{ t('publicTransport') }}</h1>
+        <h1 style="font-size: 2em; font-weight: bold;">{{ t('trains') }}</h1>
 
-        <input type="text" v-model="from" :placeholder="t('from')" class="input input-ghost w-full max-w-xs" style="border-bottom: 2px solid black;" />
-        <input type="text" v-model="to" :placeholder="t('to')" class="input input-ghost w-full max-w-xs" style="border-bottom: 2px solid black;" />
+        <div class="relative w-full max-w-xs">
+            <input
+                type="text"
+                v-model="from"
+                @input="onFromInput"
+                :placeholder="t('from')"
+                class="input input-ghost w-full"
+                style="border-bottom: 2px solid black;"
+            />
+            <div v-if="filteredFromStations.length" class="absolute z-10 w-full bg-base-100 shadow-lg rounded-lg mt-1">
+                <ul class="menu">
+                    <li v-for="station in filteredFromStations" :key="station.stop_id">
+                        <a @click="selectStation(station, 'from')">{{ station.stop_name }}</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
 
-        <button @click="searchRoute" class="btn btn-primary mt-4">{{ t('search') }}</button>
+        <div class="relative w-full max-w-xs">
+            <input
+                type="text"
+                v-model="to"
+                @input="onToInput"
+                :placeholder="t('to')"
+                class="input input-ghost w-full"
+                style="border-bottom: 2px solid black;"
+            />
+            <div v-if="filteredToStations.length" class="absolute z-10 w-full bg-base-100 shadow-lg rounded-lg mt-1">
+                <ul class="menu">
+                    <li v-for="station in filteredToStations" :key="station.stop_id">
+                        <a @click="selectStation(station, 'to')">{{ station.stop_name }}</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
 
-        <div class="container w-full max-w-xl mt-6 flex flex-wrap gap-2 justify-center">
-            <template v-if="sortedRoutes.length">
-                <button
-                    v-for="route in sortedRoutes"
-                    :key="route.route_id"
-                    @click="() => router.visit(routeDetailsUrl(route.route_id))"
-                    :title="route.route_long_name"
-                    class="btn btn-square w-10 h-10 flex items-center justify-center text-white hover:brightness-90 transition rounded-md shadow text-sm font-bold"
-                    :style="{ backgroundColor: route.route_color ? `#${route.route_color}` : getTransportColor('train') }">
-                    {{ route.route_short_name }}
-                </button>
-            </template>
-            <p v-else class="text-gray-500">{{ t('noRoutes') }}</p>
+        <button
+            @click="searchRoute"
+            class="btn btn-primary mt-4"
+            :disabled="isLoading"
+        >
+            <span v-if="isLoading" class="loading loading-spinner"></span>
+            {{ t('search') }}
+        </button>
+
+        <!-- Search Results -->
+        <div v-if="searchResults.length" class="w-full max-w-xl mt-6">
+            <div v-for="trip in searchResults" :key="trip.trip_id" class="card bg-base-100 shadow-xl mb-4">
+                <div class="card-body">
+                    <h2 class="card-title">{{ trip.route_short_name }} - {{ trip.route_long_name }}</h2>
+                    <div class="flex justify-between">
+                        <div>
+                            <p>{{ t('departure') }}: {{ trip.departure }}</p>
+                            <p>{{ t('arrival') }}: {{ trip.arrival }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- All Routes -->
+        <div class="w-full max-w-xl mt-6">
+            <h2 class="text-xl font-bold mb-4">{{ t('allRoutes') }}</h2>
+            <div class="space-y-2">
+                <div v-for="route in routes" :key="route.route_id"
+                    class="card bg-base-100 shadow hover:shadow-lg transition-shadow cursor-pointer p-4"
+                    @click="viewRouteDetails(route)">
+                    <div class="text-lg">{{ route.from_station }} → {{ route.to_station }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Route Details Modal -->
+        <div v-if="routeDetails" class="modal modal-open">
+            <div class="modal-box">
+                <h3 class="font-bold text-lg">{{ selectedRoute?.from_station }} → {{ selectedRoute?.to_station }}</h3>
+                <div class="py-4">
+                    <div v-for="stop in routeDetails.stops" :key="stop.stop_id" class="mb-2">
+                        <div class="font-semibold">{{ stop.stop_name }}</div>
+                        <div class="text-sm">
+                            {{ t('arrival') }}: {{ stop.arrival_time }}
+                            {{ t('departure') }}: {{ stop.departure_time }}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-action">
+                    <button class="btn" @click="routeDetails = null">{{ t('close') }}</button>
+                </div>
+            </div>
         </div>
     </div>
 </template>
+
+<style scoped>
+.menu {
+    max-height: 200px;
+    overflow-y: auto;
+}
+</style>
