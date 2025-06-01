@@ -28,7 +28,12 @@ const getRouteTransportType = (route) => {
     return type.value;
 };
 
-const routeDetailsUrl = (routeId) => route('route.details', { route_id: routeId });
+const getRouteDetailsUrl = (route) => {
+    if (type.value === 'train') {
+        return `/train/details/${route.route_id}/${route.trip_id}`;
+    }
+    return `/route/details/${route.route_id}/${route.trip_id}`;
+};
 
 const goBack = () => {
     // Determine the correct back URL based on the type
@@ -80,7 +85,7 @@ onMounted(() => {
             <div v-if="routes.length" class="grid gap-4">
                 <div v-for="route in routes" :key="route.route_id"
                     class="bg-base-100 p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
-                    @click="router.visit(routeDetailsUrl(route.route_id))">
+                    @click="router.visit(getRouteDetailsUrl(route))">
                     <div class="flex items-center gap-4">
                         <div class="btn btn-square w-auto h-10 px-4 flex items-center justify-center text-white hover:brightness-90 transition rounded-md shadow text-sm font-bold"
                             :style="{ backgroundColor: getTransportColor(getRouteTransportType(route)) }">

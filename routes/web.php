@@ -60,6 +60,7 @@ Route::get('/tram', function () {
 
 // Route: Train
 Route::get('/train', [TrainController::class, 'index']);
+Route::post('/train/search', [TrainController::class, 'search']);
 Route::get('/train/details/{routeId}/{tripId}', [TrainController::class, 'showDetails']);
 Route::get('/train/trip/{tripId}', [TrainController::class, 'showTripTimes']);
 

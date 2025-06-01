@@ -1,13 +1,13 @@
 <script setup>
 import { Head, Link, router } from '@inertiajs/vue3';
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import axios from 'axios';
 
 const props = defineProps({
     route: Object,
-    trips: Array,
-    selectedTrip: Object,
+    trips: Array, // This prop will still be passed, but not used for selection
+    selectedTrip: Object, // This prop will be the primary source for the trip
     stops: Array
 });
 
@@ -19,7 +19,7 @@ const selectedDate = ref(formatDate(new Date()));
 const dateOptions = ref([]);
 const error = ref(null);
 const noServiceMessage = ref(null);
-const selectedTripId = ref(props.selectedTrip?.trip_id);
+// Removed: const selectedTripId = ref(props.selectedTrip?.trip_id);
 const showTripDetails = ref(false);
 const selectedTripStops = ref([]);
 const selectedTime = ref(null);
@@ -36,14 +36,94 @@ onMounted(() => {
         });
     }
     dateOptions.value = dates;
+
+    // Automatically select the first stop and load its times on mount
+    if (props.stops && props.stops.length > 0) {
+        selectedStop.value = props.stops[0];
+        loadStopTimes(selectedStop.value);
+    }
 });
 
-const tripOptions = computed(() => {
-    return props.trips.map(trip => ({
-        value: trip.trip_id,
-        label: trip.full_name
-    }));
-});
+// Removed: watch for selectedTripId as trip selection is removed
+// watch(selectedTripId, (newTripId, oldTripId) => {
+//     if (newTripId && selectedStop.value) {
+//         loadStopTimes(selectedStop.value);
+//     }
+// });
+
+// Removed: tripOptions computed property as trip selection is removed
+// const tripOptions = computed(() => {
+//     const optionsMap = new Map();
+//     const addedTripIds = new Set();
+
+//     props.trips.forEach(trip => {
+//         const parts = trip.full_name.split(' - ');
+//         if (parts.length === 2) {
+//             const stationA = parts[0].trim();
+//             const stationB = parts[1].trim();
+//             const canonicalRouteKey = [stationA, stationB].sort().join('-');
+
+//             if (!optionsMap.has(canonicalRouteKey)) {
+//                 optionsMap.set(canonicalRouteKey, []);
+//             }
+//             optionsMap.get(canonicalRouteKey).push(trip);
+//         } else {
+//             if (!addedTripIds.has(trip.trip_id)) {
+//                 optionsMap.set(trip.trip_id, [trip]);
+//             }
+//         }
+//     });
+
+//     const finalOptions = [];
+//     optionsMap.forEach(tripsInRoute => {
+//         if (tripsInRoute.length === 1) {
+//             if (!addedTripIds.has(tripsInRoute[0].trip_id)) {
+//                 finalOptions.push({
+//                     value: tripsInRoute[0].trip_id,
+//                     label: tripsInRoute[0].full_name
+//                 });
+//                 addedTripIds.add(tripsInRoute[0].trip_id);
+//             }
+//         } else if (tripsInRoute.length > 1) {
+//             const fromToTrips = tripsInRoute.filter(t => {
+//                 const parts = t.full_name.split(' - ');
+//                 return parts.length === 2 && parts[0].trim() === tripsInRoute[0].full_name.split(' - ')[0].trim();
+//             });
+//             const toFromTrips = tripsInRoute.filter(t => {
+//                 const parts = t.full_name.split(' - ');
+//                 return parts.length === 2 && parts[0].trim() === tripsInRoute[0].full_name.split(' - ')[1].trim();
+//             });
+
+//             if (fromToTrips.length > 0 && !addedTripIds.has(fromToTrips[0].trip_id)) {
+//                 finalOptions.push({
+//                     value: fromToTrips[0].trip_id,
+//                     label: fromToTrips[0].full_name
+//                 });
+//                 addedTripIds.add(fromToTrips[0].trip_id);
+//             }
+
+//             if (toFromTrips.length > 0 && !addedTripIds.has(toFromTrips[0].trip_id)) {
+//                 finalOptions.push({
+//                     value: toFromTrips[0].trip_id,
+//                     label: `${toFromTrips[0].full_name} (${t('oppositeDirection')})`
+//                 });
+//                 addedTripIds.add(toFromTrips[0].trip_id);
+//             }
+
+//             tripsInRoute.forEach(trip => {
+//                 if (!addedTripIds.has(trip.trip_id)) {
+//                     finalOptions.push({
+//                         value: trip.trip_id,
+//                         label: trip.full_name
+//                     });
+//                     addedTripIds.add(trip.trip_id);
+//                 }
+//             });
+//         }
+//     });
+//     return finalOptions.sort((a, b) => a.label.localeCompare(b.label));
+// });
+
 
 function formatDate(date) {
     return date.toISOString().split('T')[0].replace(/-/g, '');
@@ -66,7 +146,8 @@ const loadStopTimes = async (stop) => {
     console.log('Loading stop times for:', {
         stop_id: stop.stop_id,
         route_id: props.route.route_id,
-        trip_id: selectedTripId.value,
+        // Use props.selectedTrip?.trip_id directly as there's no selection
+        trip_id: props.selectedTrip?.trip_id,
         date: selectedDate.value
     });
 
@@ -74,7 +155,8 @@ const loadStopTimes = async (stop) => {
         const response = await axios.get(`/api/train/stop-times/${stop.stop_id}`, {
             params: {
                 route_id: props.route.route_id,
-                trip_id: selectedTripId.value,
+                // Use props.selectedTrip?.trip_id directly
+                trip_id: props.selectedTrip?.trip_id,
                 date: selectedDate.value
             }
         });
@@ -97,7 +179,7 @@ const loadStopTimes = async (stop) => {
             if (stopTimes.value.length === 0) {
                 noServiceMessage.value = {
                     main: t('noTimesAvailable'),
-                    sub: t('checkDifferentTrip')
+                    sub: t('checkDifferentTrip') // This message might need adjustment if there's no "different trip" to check
                 };
             }
         }
@@ -109,9 +191,10 @@ const loadStopTimes = async (stop) => {
     }
 };
 
-const onTripChange = (tripId) => {
-    router.visit(`/train/details/${props.route.route_id}/${tripId}`);
-};
+// Removed: onTripChange as trip selection is removed
+// const onTripChange = (tripId) => {
+//     router.visit(`/train/details/${props.route.route_id}/${tripId}`);
+// };
 
 const onDateChange = () => {
     if (selectedStop.value) {
@@ -171,8 +254,8 @@ const formatTime = (time) => {
             </Link>
         </div>
 
-        <!-- Trip and Date Selection -->
         <div class="flex gap-4 mb-6">
+            <!-- Removed Trip Selection:
             <select
                 v-model="selectedTripId"
                 @change="onTripChange($event.target.value)"
@@ -182,6 +265,7 @@ const formatTime = (time) => {
                     {{ trip.label }}
                 </option>
             </select>
+            -->
 
             <select
                 v-model="selectedDate"
@@ -195,7 +279,6 @@ const formatTime = (time) => {
         </div>
 
         <div class="grid md:grid-cols-2 gap-6">
-            <!-- Stops List -->
             <div class="bg-base-100 p-4 rounded-lg shadow">
                 <h2 class="text-xl font-bold mb-4">{{ t('stops') }}</h2>
                 <div class="space-y-2">
@@ -210,18 +293,15 @@ const formatTime = (time) => {
                         ]"
                     >
                         {{ stop.stop_name }}
-                        <div class="text-xs opacity-70">ID: {{ stop.stop_id }}</div>
-                    </div>
+                        </div>
                 </div>
             </div>
 
-            <!-- Stop Times -->
             <div class="bg-base-100 p-4 rounded-lg shadow">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-bold">
                         {{ selectedStop ? selectedStop.stop_name : t('selectStop') }}
-                        <span v-if="selectedStop" class="text-sm opacity-70">(ID: {{ selectedStop.stop_id }})</span>
-                    </h2>
+                        </h2>
                 </div>
 
                 <div v-if="isLoading" class="flex justify-center items-center h-40">
@@ -253,7 +333,6 @@ const formatTime = (time) => {
                     </table>
                 </div>
 
-                <!-- Trip Details Modal -->
                 <div v-if="showTripDetails" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                     <div class="bg-base-100 p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
                         <div class="flex justify-between items-center mb-4">

@@ -65,17 +65,38 @@ class TrainController extends Controller
             ->join('stop_times as st2', 'st1.trip_id', '=', 'st2.trip_id')
             ->join('trips', 'st1.trip_id', '=', 'trips.trip_id')
             ->join('routes', 'trips.route_id', '=', 'routes.route_id')
-            ->where('st1.stop_id', $fromStop)
-            ->where('st2.stop_id', $toStop)
-            ->where('st1.stop_sequence', '<', 'st2.stop_sequence')
+            ->join('stops as from_stop', 'st1.stop_id', '=', 'from_stop.stop_id')
+            ->join('stops as to_stop', 'st2.stop_id', '=', 'to_stop.stop_id')
+            ->where(function($query) use ($fromStop, $toStop) {
+                // Direct route search
+                $query->where(function($q) use ($fromStop, $toStop) {
+                    $q->where('st1.stop_id', $fromStop)
+                      ->where('st2.stop_id', $toStop)
+                      ->where('st1.stop_sequence', '<', 'st2.stop_sequence');
+                });
+
+                // Also search by route name pattern
+                $query->orWhereExists(function($subquery) use ($fromStop, $toStop) {
+                    $subquery->select(DB::raw(1))
+                            ->from('routes as r')
+                            ->whereColumn('r.route_id', 'routes.route_id')
+                            ->where(function($q) use ($fromStop, $toStop) {
+                                $q->whereRaw("CONCAT(from_stop.stop_name, ' - ', to_stop.stop_name) LIKE routes.route_long_name")
+                                  ->orWhereRaw("CONCAT(to_stop.stop_name, ' - ', from_stop.stop_name) LIKE routes.route_long_name");
+                            });
+                });
+            })
             ->select([
                 'routes.route_id',
                 'routes.route_short_name',
                 'routes.route_long_name',
                 'st1.departure_time as departure',
                 'st2.arrival_time as arrival',
-                'trips.trip_id'
+                'trips.trip_id',
+                'from_stop.stop_name as from_station',
+                'to_stop.stop_name as to_station'
             ])
+            ->orderBy('st1.departure_time')
             ->get();
 
         return response()->json($trips);
@@ -381,6 +402,156 @@ class TrainController extends Controller
             'stops' => $stops,
             'selectedStopId' => $request->input('stop_id'),
             'selectedDepartureTime' => $request->input('departure_time')
+        ]);
+    }
+
+    public function search(Request $request)
+    {
+        $request->validate([
+            'from' => 'required|string',
+            'to' => 'required|string'
+        ]);
+
+        $from = $request->input('from');
+        $to = $request->input('to');
+
+        // First, search by route names
+        $routesByName = DB::connection('mysql_trains')
+            ->table('trips')
+            ->select([
+                'routes.route_id',
+                'routes.route_short_name',
+                'routes.route_long_name',
+                'trips.trip_id',
+                'from_stop.stop_name as from_station',
+                'to_stop.stop_name as to_station',
+                'st1.departure_time',
+                'st2.arrival_time'
+            ])
+            ->join('routes', 'trips.route_id', '=', 'routes.route_id')
+            ->join('stop_times as st1', function($join) {
+                $join->on('trips.trip_id', '=', 'st1.trip_id')
+                    ->whereRaw('st1.stop_sequence = (SELECT MIN(stop_sequence) FROM stop_times WHERE trip_id = trips.trip_id)');
+            })
+            ->join('stops as from_stop', 'st1.stop_id', '=', 'from_stop.stop_id')
+            ->join('stop_times as st2', function($join) {
+                $join->on('trips.trip_id', '=', 'st2.trip_id')
+                    ->whereRaw('st2.stop_sequence = (SELECT MAX(stop_sequence) FROM stop_times WHERE trip_id = trips.trip_id)');
+            })
+            ->join('stops as to_stop', 'st2.stop_id', '=', 'to_stop.stop_id')
+            ->where(function($query) use ($from, $to) {
+                $query->where('routes.route_long_name', 'LIKE', "%{$from}%-%{$to}%")
+                    ->orWhere('routes.route_long_name', 'LIKE', "%{$from}% - %{$to}%")
+                    ->orWhere('routes.route_long_name', 'LIKE', "%{$to}%-%{$from}%")
+                    ->orWhere('routes.route_long_name', 'LIKE', "%{$to}% - %{$from}%");
+            })
+            ->distinct()
+            ->get();
+
+        // Then, search by stop sequence
+        $routesByStops = DB::connection('mysql_trains')
+            ->table('trips')
+            ->select([
+                'routes.route_id',
+                'routes.route_short_name',
+                'routes.route_long_name',
+                'trips.trip_id',
+                'from_stop.stop_name as from_station',
+                'to_stop.stop_name as to_station',
+                'st1.departure_time',
+                'st2.arrival_time'
+            ])
+            ->join('routes', 'trips.route_id', '=', 'routes.route_id')
+            ->join('stop_times as st1', function($join) {
+                $join->on('trips.trip_id', '=', 'st1.trip_id');
+            })
+            ->join('stops as from_stop', 'st1.stop_id', '=', 'from_stop.stop_id')
+            ->join('stop_times as st2', function($join) {
+                $join->on('trips.trip_id', '=', 'st2.trip_id');
+            })
+            ->join('stops as to_stop', 'st2.stop_id', '=', 'to_stop.stop_id')
+            ->where(function($query) use ($from, $to) {
+                $query->where('from_stop.stop_name', 'LIKE', "%{$from}%")
+                    ->where('to_stop.stop_name', 'LIKE', "%{$to}%")
+                    ->whereColumn('st1.stop_sequence', '<', 'st2.stop_sequence');
+            })
+            ->distinct()
+            ->get();
+
+        // Combine both results
+        $routes = $routesByName->concat($routesByStops);
+
+        // Get all stops for each trip to show the complete route
+        $routesWithStops = $routes->map(function($route) {
+            // Get all stops for this trip in sequence
+            $allStops = DB::connection('mysql_trains')
+                ->table('stop_times')
+                ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
+                ->where('stop_times.trip_id', $route->trip_id)
+                ->orderBy('stop_times.stop_sequence')
+                ->get(['stops.stop_name', 'stop_times.departure_time', 'stop_times.arrival_time']);
+
+            $route->all_stops = $allStops;
+            return $route;
+        });
+
+        // Group routes by route_id to get unique routes with their trips
+        $uniqueRoutes = $routesWithStops->unique('route_id')->map(function($route) {
+            // Get all trips for this route
+            $trips = DB::connection('mysql_trains')
+                ->table('trips')
+                ->where('route_id', $route->route_id)
+                ->get(['trip_id']);
+
+            // Keep the original trip_id from the route
+            $route->trips = $trips->map(function($trip) {
+                $stopTimes = DB::connection('mysql_trains')
+                    ->table('stop_times')
+                    ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
+                    ->where('stop_times.trip_id', $trip->trip_id)
+                    ->orderBy('stop_times.stop_sequence')
+                    ->get(['stops.stop_name', 'stop_times.departure_time', 'stop_times.arrival_time']);
+
+                return [
+                    'trip_id' => $trip->trip_id,
+                    'all_stops' => $stopTimes
+                ];
+            });
+
+            // Ensure we keep the original trip_id from the route
+            if (!$route->trip_id && $trips->isNotEmpty()) {
+                $route->trip_id = $trips->first()->trip_id;
+            }
+
+            return $route;
+        })->values();
+
+        // If only one route found, redirect to its details
+        if ($uniqueRoutes->count() === 1) {
+            $route = $uniqueRoutes->first();
+            if ($route->trip_id) {
+                $fromStop = DB::connection('mysql_trains')
+                    ->table('stops')
+                    ->where('stop_name', 'LIKE', "%{$from}%")
+                    ->first();
+                if ($fromStop) {
+                    return redirect()->to("/train/details/{$route->route_id}/{$route->trip_id}?selected_stop_id={$fromStop->stop_id}");
+                }
+            }
+        }
+
+        // Pass the search parameters in the URL for refresh handling
+        return Inertia::render('SearchResults', [
+            'routes' => $uniqueRoutes,
+            'from' => $from,
+            'to' => $to,
+            'type' => 'train'
+        ])->with([
+            'url' => url()->current() . '?' . http_build_query([
+                'from' => $from,
+                'to' => $to,
+                'type' => 'train'
+            ])
         ]);
     }
 }
