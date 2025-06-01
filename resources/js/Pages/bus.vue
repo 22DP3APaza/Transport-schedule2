@@ -6,7 +6,7 @@ import axios from 'axios';
 
 const { t, locale } = useI18n();
 const page = usePage();
-const routes = ref(page.props.routes || []);
+const routes = ref(page.props.routes || []); // Initialize with page props
 const from = ref('');
 const to = ref('');
 const stops = ref([]);
@@ -15,6 +15,8 @@ const filteredToStops = ref([]);
 const showFromDropdown = ref(false);
 const showToDropdown = ref(false);
 const isLoadingStops = ref(false);
+const selectedCity = ref('riga'); // Always default to 'riga'
+const isLoadingRoutes = ref(false);
 
 // Extract stop names from route names (format: "Stop1 - Stop2")
 const extractStopsFromRoutes = (routes) => {
@@ -48,12 +50,61 @@ const combineStops = (apiStops, routeStops) => {
   return allStops;
 };
 
+// Fetch routes for the selected city
+const fetchRoutes = async () => {
+  try {
+    isLoadingRoutes.value = true;
+    if (selectedCity.value === 'riga') {
+      // For Riga, first try to use routes from props
+      if (page.props.routes && page.props.routes.length > 0) {
+        routes.value = page.props.routes;
+      } else {
+        // If no props or empty, fetch from API
+        const response = await axios.get('/api/routes', {
+          params: { type: 'bus' }
+        });
+        routes.value = response.data || [];
+      }
+    } else {
+      // For Liepaja, use the Liepaja database
+      const response = await axios.get('/api/routes', {
+        params: {
+          type: 'bus',
+          database: 'transport_schedule_liepaja'
+        }
+      });
+      routes.value = response.data || [];
+    }
+  } catch (error) {
+    console.error('Error fetching routes:', error);
+    routes.value = [];
+  } finally {
+    isLoadingRoutes.value = false;
+  }
+};
+
+// Watch for city changes and save to localStorage
+watch(selectedCity, async (newCity) => {
+  // Clear current selections and refetch data for new city
+  from.value = '';
+  to.value = '';
+  filteredFromStops.value = [];
+  filteredToStops.value = [];
+  await fetchStops();
+  await fetchRoutes();
+});
+
 // Fetch stops data and combine with stops extracted from routes
 const fetchStops = async () => {
   try {
     isLoadingStops.value = true;
     const [stopsResponse] = await Promise.all([
-      axios.get('/api/stops'),
+      axios.get('/api/stops', {
+        params: {
+          type: 'bus',
+          database: selectedCity.value === 'liepaja' ? 'transport_schedule_liepaja' : undefined
+        }
+      })
     ]);
 
     // Get unique stops from API
@@ -65,7 +116,7 @@ const fetchStops = async () => {
     }, []);
 
     // Extract stops from route names
-    const routeStops = extractStopsFromRoutes(page.props.routes || []);
+    const routeStops = extractStopsFromRoutes(routes.value);
 
     // Combine and deduplicate
     stops.value = combineStops(apiStops, routeStops);
@@ -100,13 +151,14 @@ watch(to, async (newVal) => {
       const response = await axios.get('/api/possible-destinations', {
         params: {
           from: from.value,
-          type: 'bus'
+          type: 'bus',
+          database: selectedCity.value === 'liepaja' ? 'transport_schedule_liepaja' : undefined
         }
       });
       filteredToStops.value = response.data.filter(stop =>
-      stop.stop_name.toLowerCase().includes(newVal.toLowerCase())
-    ).slice(0, 5);
-    showToDropdown.value = filteredToStops.value.length > 0;
+        stop.stop_name.toLowerCase().includes(newVal.toLowerCase())
+      ).slice(0, 5);
+      showToDropdown.value = filteredToStops.value.length > 0;
     } catch (error) {
       console.error('Error fetching possible destinations:', error);
       filteredToStops.value = [];
@@ -148,7 +200,8 @@ const searchRoute = () => {
   if (from.value && to.value) {
     router.post('/bus/search', {
       from: from.value,
-      to: to.value
+      to: to.value,
+      database: selectedCity.value === 'liepaja' ? 'transport_schedule_liepaja' : undefined
     });
   } else {
     alert(t('pleaseEnterValues'));
@@ -163,7 +216,12 @@ const isActive = (routeName) => {
   return page.url.startsWith(routeName);
 };
 
-const routeDetailsUrl = (routeId) => route('route.details', { route_id: routeId });
+const routeDetailsUrl = (routeId) => {
+  const baseUrl = route('route.details', { route_id: routeId });
+  return selectedCity.value === 'liepaja' ?
+    `${baseUrl}?database=transport_schedule_liepaja` :
+    baseUrl;
+};
 
 // Get color based on transport type
 const getTransportColor = (transportType) => {
@@ -179,7 +237,7 @@ const getTransportColor = (transportType) => {
 const currentTheme = ref('light');
 
 // Load the theme from localStorage on initialization
-onMounted(() => {
+onMounted(async () => {
   const savedTheme = localStorage.getItem('theme');
   if (savedTheme) {
     currentTheme.value = savedTheme;
@@ -192,14 +250,25 @@ onMounted(() => {
     locale.value = savedLanguage;
   }
 
+  // Always start with Riga
+  selectedCity.value = 'riga';
+
+  // Initialize routes from page props for Riga
+  if (page.props.routes) {
+    routes.value = page.props.routes;
+  }
+
   // Check for search params in URL
   if (page.props.searchParams) {
     from.value = page.props.searchParams.from || '';
     to.value = page.props.searchParams.to || '';
   }
 
-  // Fetch stops data when component mounts
-  fetchStops();
+  // Fetch initial data
+  await fetchStops();
+  if (!routes.value.length) {
+    await fetchRoutes();
+  }
 });
 
 const toggleTheme = () => {
@@ -311,7 +380,25 @@ const changeLanguage = (language) => {
     </header>
 
     <div class="middle" style="display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px;">
-      <h1 style="font-size: 2em; font-weight: bold;">{{ t('publicTransport') }}</h1>
+      <h1 style="font-size: 2em; font-weight: bold;">{{ t('bus') }}</h1>
+
+      <!-- Add city selector -->
+      <div class="flex justify-center gap-2 mb-4">
+        <button
+          class="btn"
+          :class="{ 'btn-primary': selectedCity === 'riga' }"
+          @click="selectedCity = 'riga'"
+        >
+          {{ t('riga') }}
+        </button>
+        <button
+          class="btn"
+          :class="{ 'btn-primary': selectedCity === 'liepaja' }"
+          @click="selectedCity = 'liepaja'"
+        >
+          {{ t('liepaja') }}
+        </button>
+      </div>
 
       <div class="flex items-center gap-4">
         <div class="flex flex-col gap-4">
@@ -421,7 +508,10 @@ const changeLanguage = (language) => {
       </div>
 
       <div class="container w-full max-w-xl mt-6 flex flex-wrap gap-2 justify-center">
-        <template v-if="sortedRoutes.length">
+        <div v-if="isLoadingRoutes" class="flex justify-center items-center">
+          <span class="loading loading-spinner loading-lg"></span>
+        </div>
+        <template v-else-if="sortedRoutes.length">
           <button
             v-for="route in sortedRoutes"
             :key="route.route_id"

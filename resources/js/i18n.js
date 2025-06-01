@@ -3,6 +3,7 @@ import { createI18n } from 'vue-i18n'
 const messages = {
   en: {
     // Transport types
+    all: 'All (no trains)',
     bus: 'Bus',
     trolleybus: 'Trolleybus',
     tram: 'Tram',
@@ -270,9 +271,15 @@ const messages = {
     tripSchedule: 'Trip Schedule',
     stopName: 'Stop Name',
     clickForDetails: 'Click for trip details',
+
+    // Cities
+    selectCity: 'Select City',
+    riga: 'Riga',
+    liepaja: 'Liepaja',
   },
   lv: {
     // Transport types
+    all: 'Visi (bez vilcieniem)',
     bus: 'Autobuss',
     trolleybus: 'Trolejbuss',
     tram: 'Tramvajs',
@@ -540,6 +547,11 @@ const messages = {
     tripSchedule: 'Reisa Saraksts',
     stopName: 'Pieturas Nosaukums',
     clickForDetails: 'Klikšķiniet, lai redzētu reisa detaļas',
+
+    // Cities
+    selectCity: 'Izvēlēties pilsētu',
+    riga: 'Rīga',
+    liepaja: 'Liepāja',
   }
 }
 

@@ -50,19 +50,16 @@ watch(from, (newVal) => {
     if (newVal.length > 1) {
         filteredFromStations.value = stations.value.filter(station =>
             station.stop_name.toLowerCase().includes(newVal.toLowerCase())
-        );
+        ).slice(0, 5);
         showFromDropdown.value = filteredFromStations.value.length > 0;
 
-        // --- MODIFIED LOGIC: Set selectedFromStation to the first filtered station for API calls ---
-        // This allows 'to' suggestions to work even if 'from' isn't explicitly selected from dropdown
+        // Set selectedFromStation to the first filtered station for API calls
         if (filteredFromStations.value.length > 0) {
             selectedFromStation.value = filteredFromStations.value[0];
         } else {
             selectedFromStation.value = null; // Clear if no matches
         }
-
     } else {
-        filteredFromStations.value = [];
         showFromDropdown.value = false;
         selectedFromStation.value = null; // Clear selected station if input is too short
     }
@@ -75,45 +72,35 @@ watch(from, (newVal) => {
 
 // Watch for changes in to input
 watch(to, async (newVal) => {
-    // Only fetch possible destinations if a 'from' station is selected AND input length > 1
-    if (newVal.length > 1 && selectedFromStation.value) {
-        try {
-            // Fetch possible destinations from API based on selectedFromStation
-            const response = await axios.get(`/api/train/possible-destinations/${selectedFromStation.value.stop_id}`);
-            // Filter the fetched possible destinations based on the 'to' input
-            filteredToStations.value = response.data.filter(station =>
-                station.stop_name.toLowerCase().includes(newVal.toLowerCase())
-            );
-            showToDropdown.value = filteredToStations.value.length > 0;
-        } catch (error) {
-            console.error('Error fetching possible destinations:', error);
-            filteredToStations.value = [];
-            showToDropdown.value = false;
-        }
+    if (newVal.length > 1) {
+        // Filter from all stations since we don't have a specific train destinations endpoint
+        filteredToStations.value = stations.value.filter(station =>
+            station.stop_name.toLowerCase().includes(newVal.toLowerCase()) &&
+            (!selectedFromStation.value || station.stop_id !== selectedFromStation.value.stop_id)
+        ).slice(0, 5);
+        showToDropdown.value = filteredToStations.value.length > 0;
     } else {
         filteredToStations.value = [];
         showToDropdown.value = false;
     }
 });
 
-// Select station from dropdown
-const selectStation = (station, type) => {
-    if (type === 'from') {
-        from.value = station.stop_name;
-        selectedFromStation.value = station; // Explicitly set selectedFromStation
-        filteredFromStations.value = [];
-        showFromDropdown.value = false;
-        // Clear 'to' field and its filtered options when 'from' is selected
-        to.value = '';
-        selectedToStation.value = null;
-        filteredToStations.value = [];
-        showToDropdown.value = false;
-    } else {
-        to.value = station.stop_name;
-        selectedToStation.value = station; // Explicitly set selectedToStation
-        filteredToStations.value = [];
-        showToDropdown.value = false;
-    }
+// Select a station from the from dropdown
+const selectFromStop = (station) => {
+    from.value = station.stop_name;
+    selectedFromStation.value = station;
+    showFromDropdown.value = false;
+    // Clear the 'to' field when selecting a new 'from' station
+    to.value = '';
+    selectedToStation.value = null;
+    filteredToStations.value = [];
+};
+
+// Select a station from the to dropdown
+const selectToStop = (station) => {
+    to.value = station.stop_name;
+    selectedToStation.value = station;
+    showToDropdown.value = false;
 };
 
 // Switch from and to values
@@ -133,22 +120,16 @@ const switchStations = () => {
 };
 
 // Search for routes
-const searchRoute = async () => {
+const searchRoute = () => {
     if (!selectedFromStation.value || !selectedToStation.value) {
         alert(t('pleaseSelectStations'));
         return;
     }
 
-    isLoading.value = true;
-    try {
-        const response = await axios.get(`/api/train/search-route/${selectedFromStation.value.stop_id}/${selectedToStation.value.stop_id}`);
-        searchResults.value = response.data;
-    } catch (error) {
-        console.error('Error searching routes:', error);
-        searchResults.value = [];
-    } finally {
-        isLoading.value = false;
-    }
+    router.post('/train/search', {
+        from: from.value,
+        to: to.value
+    });
 };
 
 // View route details - navigates to a new page
@@ -214,6 +195,15 @@ const toggleTheme = () => {
 const changeLanguage = (language) => {
     locale.value = language;
     localStorage.setItem('language', language);
+};
+
+// Add this helper function near the top with other functions
+const formatTime = (time) => {
+    if (!time) return '';
+    // Handle times that might be in 24+ hour format (e.g. "25:30:00")
+    const [hours, minutes] = time.split(':');
+    const adjustedHours = parseInt(hours) % 24;
+    return `${adjustedHours.toString().padStart(2, '0')}:${minutes}`;
 };
 </script>
 
@@ -314,7 +304,7 @@ const changeLanguage = (language) => {
     </header>
 
     <div class="middle" style="display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px;">
-        <h1 style="font-size: 2em; font-weight: bold;">{{ t('trains') }}</h1>
+        <h1 style="font-size: 2em; font-weight: bold;">{{ t('publicTransport') }}</h1>
 
         <div class="flex items-center gap-4">
             <div class="flex flex-col gap-4">
@@ -322,19 +312,18 @@ const changeLanguage = (language) => {
                     <input
                         type="text"
                         v-model="from"
-                        @input="onFromInput"
-                        @focus="showFromDropdown = filteredFromStations.length > 0"
-                        @blur="showFromDropdown = false"
                         :placeholder="t('from')"
                         class="input input-ghost w-full max-w-xs"
                         style="border-bottom: 2px solid black;"
+                        @focus="showFromDropdown = filteredFromStations.length > 0"
+                        @blur="showFromDropdown = false"
                     />
                     <ul
                         v-if="showFromDropdown && filteredFromStations.length"
                         class="absolute z-10 mt-1 w-full max-w-xs bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-700 menu"
                     >
                         <li v-for="station in filteredFromStations" :key="station.stop_id">
-                            <a @mousedown.prevent="selectStation(station, 'from')">{{ station.stop_name }}</a>
+                            <a @mousedown.prevent="selectFromStop(station)">{{ station.stop_name }}</a>
                         </li>
                     </ul>
                     <div v-if="isLoadingStops" class="absolute right-3 top-3">
@@ -346,19 +335,18 @@ const changeLanguage = (language) => {
                     <input
                         type="text"
                         v-model="to"
-                        @input="onToInput"
-                        @focus="showToDropdown = filteredToStations.length > 0"
-                        @blur="showToDropdown = false"
                         :placeholder="t('to')"
                         class="input input-ghost w-full max-w-xs"
                         style="border-bottom: 2px solid black;"
+                        @focus="showToDropdown = filteredToStations.length > 0"
+                        @blur="showToDropdown = false"
                     />
                     <ul
                         v-if="showToDropdown && filteredToStations.length"
                         class="absolute z-10 mt-1 w-full max-w-xs bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-700 menu"
                     >
                         <li v-for="station in filteredToStations" :key="station.stop_id">
-                            <a @mousedown.prevent="selectStation(station, 'to')">{{ station.stop_name }}</a>
+                            <a @mousedown.prevent="selectToStop(station)">{{ station.stop_name }}</a>
                         </li>
                     </ul>
                     <div v-if="isLoadingStops" class="absolute right-3 top-3">
@@ -377,33 +365,10 @@ const changeLanguage = (language) => {
         <button
             @click="searchRoute"
             class="btn btn-primary mt-4"
-            :disabled="isLoading || !selectedFromStation || !selectedToStation"
+            :disabled="!selectedFromStation || !selectedToStation"
         >
-            <span v-if="isLoading" class="loading loading-spinner"></span>
             {{ t('search') }}
         </button>
-
-        <div v-if="searchResults.length" class="w-full max-w-xl mt-6">
-            <h2 class="text-xl font-bold mb-4">{{ t('searchResults') }}</h2>
-            <div v-for="trip in searchResults" :key="trip.trip_id"
-                 class="card bg-base-100 shadow-xl mb-4 cursor-pointer hover:bg-base-200 transition-colors"
-                 @click="viewRouteDetails(trip)">
-                <div class="card-body">
-                    <h2 class="card-title">{{ trip.route_short_name }} - {{ trip.route_long_name }}</h2>
-                    <div class="flex justify-between">
-                        <div>
-                            <p>{{ t('departure') }}: {{ trip.departure }}</p>
-                            <p>{{ t('arrival') }}: {{ trip.arrival }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div v-else-if="!isLoading && selectedFromStation && selectedToStation && from.length > 0 && to.length > 0 && searchResults.length === 0"
-             class="text-center py-4 text-gray-500">
-            {{ t('noDirectRoutesFound') }}
-        </div>
-
 
         <div class="w-full max-w-xl mt-6">
             <h2 class="text-xl font-bold mb-4">{{ t('allRoutes') }}</h2>

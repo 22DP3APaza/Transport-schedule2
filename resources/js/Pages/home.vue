@@ -29,6 +29,13 @@ const transportTypes = [
     { id: 'train', name: t('train'), color: '#4B5563' }
 ];
 
+// Watch for changes in locale to update transport type names
+watch(locale, () => {
+    transportTypes.forEach(type => {
+        type.name = t(type.id);
+    });
+});
+
 // Extract stop names from route names (format: "Stop1 - Stop2")
 const extractStopsFromRoutes = (routes) => {
     const routeStops = new Set(); // Use a Set to automatically handle duplicates
@@ -69,8 +76,9 @@ const combineStops = (apiStops, routeStops) => {
 const fetchStops = async () => {
     try {
         isLoadingStops.value = true;
+        const endpoint = transportType.value === 'train' ? '/api/train/stops' : '/api/stops';
         const [stopsResponse] = await Promise.all([
-            axios.get('/api/stops').catch(() => ({ data: [] })),
+            axios.get(endpoint).catch(() => ({ data: [] })),
         ]);
 
         // Get unique stops from API
@@ -81,11 +89,16 @@ const fetchStops = async () => {
             return acc;
         }, []);
 
-        // Extract stops from route names if available
-        const routeStops = page.props.routes ? extractStopsFromRoutes(page.props.routes) : [];
+        // Extract stops from route names if available and if not in train mode
+        const routeStops = (page.props.routes && transportType.value !== 'train') ? extractStopsFromRoutes(page.props.routes) : [];
 
-        // Combine and deduplicate
-        stops.value = combineStops(apiStops, routeStops);
+        // Don't combine train stops with regular stops when in 'all' mode
+        if (transportType.value === 'all') {
+            stops.value = apiStops.filter(stop => stop.transport_type !== 'train');
+        } else {
+            // Combine and deduplicate
+            stops.value = combineStops(apiStops, routeStops);
+        }
     } catch (error) {
         console.error('Error fetching stops:', error);
     } finally {
@@ -110,53 +123,62 @@ watch(from, async (newVal) => {
 watch(to, async (newVal) => {
     if (newVal.length > 1 && from.value) {
         try {
-            // First try to get possible destinations from the API
-            const response = await axios.get('/api/possible-destinations', {
-                params: {
-                    from: from.value,
-                    type: transportType.value
-                }
-            });
+            if (transportType.value === 'train') {
+                // For trains, filter from the loaded stations, excluding the 'from' station
+                filteredToStops.value = stops.value
+                    .filter(stop =>
+                        stop.stop_name.toLowerCase().includes(newVal.toLowerCase()) &&
+                        stop.stop_name.toLowerCase() !== from.value.toLowerCase()
+                    )
+                    .slice(0, 5);
+            } else {
+                // For other transport types, use the API
+                const response = await axios.get('/api/possible-destinations', {
+                    params: {
+                        from: from.value,
+                        type: transportType.value
+                    }
+                });
 
-            // Get stops from API response
-            let possibleStops = response.data;
+                // Get stops from API response
+                let possibleStops = response.data;
 
-            // Also search in route names for potential destinations
-            const routeNameStops = stops.value.filter(stop =>
-                stop.from_route &&
-                stop.stop_name.toLowerCase().includes(newVal.toLowerCase()) &&
-                stop.stop_name.toLowerCase() !== from.value.toLowerCase()
-            );
+                // Also search in route names for potential destinations
+                const routeNameStops = stops.value.filter(stop =>
+                    stop.from_route &&
+                    stop.stop_name.toLowerCase().includes(newVal.toLowerCase()) &&
+                    stop.stop_name.toLowerCase() !== from.value.toLowerCase()
+                );
 
-            // Combine API results with route name stops, ensuring uniqueness
-            const uniqueStops = new Map();
+                // Combine API results with route name stops, ensuring uniqueness
+                const uniqueStops = new Map();
 
-            // Add API stops first
-            possibleStops.forEach(stop => {
-                uniqueStops.set(stop.stop_name.toLowerCase(), stop);
-            });
+                // Add API stops first
+                possibleStops.forEach(stop => {
+                    uniqueStops.set(stop.stop_name.toLowerCase(), stop);
+                });
 
-            // Add route name stops if they don't exist
-            routeNameStops.forEach(stop => {
-                const lowerName = stop.stop_name.toLowerCase();
-                if (!uniqueStops.has(lowerName)) {
-                    uniqueStops.set(lowerName, stop);
-                }
-            });
+                // Add route name stops if they don't exist
+                routeNameStops.forEach(stop => {
+                    const lowerName = stop.stop_name.toLowerCase();
+                    if (!uniqueStops.has(lowerName)) {
+                        uniqueStops.set(lowerName, stop);
+                    }
+                });
 
-            // Convert back to array and filter by search term
-            filteredToStops.value = Array.from(uniqueStops.values())
-                .filter(stop => stop.stop_name.toLowerCase().includes(newVal.toLowerCase()))
-                .slice(0, 5);
+                // Convert back to array and filter by search term
+                filteredToStops.value = Array.from(uniqueStops.values())
+                    .filter(stop => stop.stop_name.toLowerCase().includes(newVal.toLowerCase()))
+                    .slice(0, 5);
+            }
 
             showToDropdown.value = filteredToStops.value.length > 0;
         } catch (error) {
             console.error('Error fetching possible destinations:', error);
 
-            // Fallback to route name stops if API fails
+            // Fallback to filtering from all stops
             filteredToStops.value = stops.value
                 .filter(stop =>
-                    stop.from_route &&
                     stop.stop_name.toLowerCase().includes(newVal.toLowerCase()) &&
                     stop.stop_name.toLowerCase() !== from.value.toLowerCase()
                 )
@@ -316,6 +338,16 @@ const viewSavedRoute = (saved) => {
     router.visit(`/route/details/${saved.route_id}/${saved.trip_id}?selected_stop_id=${saved.stop_id}`);
 };
 
+// Watch for changes in transport type to refetch stops
+watch(transportType, () => {
+    // Clear current selections
+    from.value = '';
+    to.value = '';
+    filteredFromStops.value = [];
+    filteredToStops.value = [];
+    // Refetch stops for the new transport type
+    fetchStops();
+});
 
 // Load theme, language preferences and stops data
 onMounted(() => {
@@ -358,7 +390,7 @@ const changeLanguage = (language) => {
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <link rel="icon" type="image/png" href="/images/logo.png">
     </Head>
-    
+
     <header class="navbar bg-base-100">
         <div class="navbar-start">
             <a href="/">

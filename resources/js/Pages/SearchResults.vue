@@ -20,19 +20,21 @@ const getTransportColor = (transportType) => {
     }
 };
 
+const routeDetailsUrl = (route) => {
+    // For train routes, we need both route_id and trip_id
+    if (type.value === 'train' && route.trip_id) {
+        return `/train/details/${route.route_id}/${route.trip_id}`;
+    }
+    // For other transport types, use the regular route.details endpoint
+    return route('route.details', { route_id: route.route_id });
+};
+
 // Get transport type for a specific route
 const getRouteTransportType = (route) => {
     if (type.value === 'all') {
         return route.transport_type || 'bus'; // Use the tagged type or default to bus
     }
     return type.value;
-};
-
-const getRouteDetailsUrl = (route) => {
-    if (type.value === 'train') {
-        return `/train/details/${route.route_id}/${route.trip_id}`;
-    }
-    return `/route/details/${route.route_id}/${route.trip_id}`;
 };
 
 const goBack = () => {
@@ -85,9 +87,9 @@ onMounted(() => {
             <div v-if="routes.length" class="grid gap-4">
                 <div v-for="route in routes" :key="route.route_id"
                     class="bg-base-100 p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer"
-                    @click="router.visit(getRouteDetailsUrl(route))">
+                    @click="router.visit(routeDetailsUrl(route))">
                     <div class="flex items-center gap-4">
-                        <div class="btn btn-square w-auto h-10 px-4 flex items-center justify-center text-white hover:brightness-90 transition rounded-md shadow text-sm font-bold"
+                        <div v-if="type !== 'train'" class="btn btn-square w-auto h-10 px-4 flex items-center justify-center text-white hover:brightness-90 transition rounded-md shadow text-sm font-bold"
                             :style="{ backgroundColor: getTransportColor(getRouteTransportType(route)) }">
                             {{ route.route_short_name }}
                         </div>

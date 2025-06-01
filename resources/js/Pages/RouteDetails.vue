@@ -132,10 +132,12 @@ const handleTimeClick = (time) => {
         return;
     }
 
-    // Pass the specific trip_id along with stop_id and departure_time
-    router.visit(`/stoptimes?trip_id=${time.trip_id}&stop_id=${selectedStop.value.stop_id}&departure_time=${time.departure_time}`, {
-        onError: (errors) => {
+    const database = page.props.database;
+    const url = `/stoptimes?trip_id=${time.trip_id}&stop_id=${selectedStop.value.stop_id}&departure_time=${time.departure_time}${database ? `&database=${database}` : ''}`;
 
+    // Pass the specific trip_id along with stop_id and departure_time
+    router.visit(url, {
+        onError: (errors) => {
             console.error(`${t('errorNavigating')}:`, errors);
             alert(`${t('errorNavigating')}: ${errors.message || 'Unknown error'}`);
         }
@@ -242,11 +244,12 @@ const fetchStopTimes = async () => {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 5000);
 
+            const database = page.props.database;
+            const url = `/stop/times/${selectedStop.value.stop_id}?type=${type}&route_id=${routedata.value.route_id}&trip_id=${selectedTrip.value.trip_id}${database ? `&database=${database}` : ''}`;
+
             // Pass the selectedTrip.value.trip_id to the backend
-            const response = await fetch(
-                `/stop/times/${selectedStop.value.stop_id}?type=${type}&route_id=${routedata.value.route_id}&trip_id=${selectedTrip.value.trip_id}`,
-                { signal: controller.signal }
-            ).finally(() => clearTimeout(timeoutId));
+            const response = await fetch(url, { signal: controller.signal })
+                .finally(() => clearTimeout(timeoutId));
 
             if (!response.ok) {
                 console.warn(`Failed to fetch ${type} schedule for stop ${selectedStop.value.stop_id} and route ${routedata.value.route_id}. Status: ${response.status}`);
@@ -309,7 +312,9 @@ watch(selectedTrip, async (newTrip) => {
     }
 
     try {
-        const res = await fetch(`/route/details/${routedata.value.route_id}/${newTrip.trip_id}/stops`);
+        const database = page.props.database;
+        const url = `/route/details/${routedata.value.route_id}/${newTrip.trip_id}/stops${database ? `?database=${database}` : ''}`;
+        const res = await fetch(url);
         const data = await res.json();
         stops.value = data;
         selectedStop.value = data[0] || null;

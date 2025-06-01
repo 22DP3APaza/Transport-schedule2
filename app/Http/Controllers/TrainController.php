@@ -71,7 +71,7 @@ class TrainController extends Controller
                 // Direct route search
                 $query->where(function($q) use ($fromStop, $toStop) {
                     $q->where('st1.stop_id', $fromStop)
-                      ->where('st2.stop_id', $toStop)
+            ->where('st2.stop_id', $toStop)
                       ->where('st1.stop_sequence', '<', 'st2.stop_sequence');
                 });
 
@@ -503,7 +503,6 @@ class TrainController extends Controller
                 ->where('route_id', $route->route_id)
                 ->get(['trip_id']);
 
-            // Keep the original trip_id from the route
             $route->trips = $trips->map(function($trip) {
                 $stopTimes = DB::connection('mysql_trains')
                     ->table('stop_times')
@@ -517,12 +516,6 @@ class TrainController extends Controller
                     'all_stops' => $stopTimes
                 ];
             });
-
-            // Ensure we keep the original trip_id from the route
-            if (!$route->trip_id && $trips->isNotEmpty()) {
-                $route->trip_id = $trips->first()->trip_id;
-            }
-
             return $route;
         })->values();
 

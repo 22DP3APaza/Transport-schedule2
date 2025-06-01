@@ -80,37 +80,80 @@ Route::get('/settings', function () {
 });
 
 // Route Details Page
-Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id = null) {
-    // Fetch the route details
-    $route = ModelRoute::where('route_id', $route_id)->firstOrFail([
-        'route_id', 'route_short_name', 'route_long_name', 'route_color'
-    ]);
+Route::get('/route/details/{route_id}/{trip_id?}', function (Request $request, $route_id, $trip_id = null) {
+    $database = $request->query('database');
 
-    // Fetch all trips for the route
-    $trips = Trip::where('route_id', $route_id)->get();
+    // If a specific database is requested, use that connection
+    if ($database) {
+        $db = DB::connection($database);
 
-    $enhancedTrips = $trips->map(function ($trip) {
-        // Get all stops for this trip with their sequence
-        $tripStops = DB::table('stop_times')
-            ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
-            ->where('stop_times.trip_id', $trip->trip_id)
-            ->orderBy('stop_times.stop_sequence')
-            ->get(['stops.stop_name', 'stop_times.stop_sequence']);
+        // Fetch the route details
+        $route = $db->table('routes')
+            ->where('route_id', $route_id)
+            ->first(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
 
-        if ($tripStops->isEmpty()) {
-            return null;
+        if (!$route) {
+            abort(404);
         }
 
-        // Get first and last stops
-        $firstStop = $tripStops->first();
-        $lastStop = $tripStops->last();
+        // Fetch all trips for the route
+        $trips = $db->table('trips')
+            ->where('route_id', $route_id)
+            ->get();
 
-        // Store the stop sequence for comparison
-        $trip->stop_sequence = $tripStops->pluck('stop_sequence')->toArray();
-        $trip->full_name = $firstStop->stop_name . ' → ' . $lastStop->stop_name;
+        $enhancedTrips = $trips->map(function ($trip) use ($db) {
+            // Get all stops for this trip with their sequence
+            $tripStops = $db->table('stop_times')
+                ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
+                ->where('stop_times.trip_id', $trip->trip_id)
+                ->orderBy('stop_times.stop_sequence')
+                ->get(['stops.stop_name', 'stop_times.stop_sequence']);
 
-        return $trip;
-    })->filter(); // Remove null entries
+            if ($tripStops->isEmpty()) {
+                return null;
+            }
+
+            // Get first and last stops
+            $firstStop = $tripStops->first();
+            $lastStop = $tripStops->last();
+
+            // Store the stop sequence for comparison
+            $trip->stop_sequence = $tripStops->pluck('stop_sequence')->toArray();
+            $trip->full_name = $firstStop->stop_name . ' → ' . $lastStop->stop_name;
+
+            return $trip;
+        })->filter();
+    } else {
+        // Fetch the route details
+        $route = ModelRoute::where('route_id', $route_id)
+            ->firstOrFail(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
+
+        // Fetch all trips for the route
+        $trips = Trip::where('route_id', $route_id)->get();
+
+        $enhancedTrips = $trips->map(function ($trip) {
+            // Get all stops for this trip with their sequence
+            $tripStops = DB::table('stop_times')
+                ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
+                ->where('stop_times.trip_id', $trip->trip_id)
+                ->orderBy('stop_times.stop_sequence')
+                ->get(['stops.stop_name', 'stop_times.stop_sequence']);
+
+            if ($tripStops->isEmpty()) {
+                return null;
+            }
+
+            // Get first and last stops
+            $firstStop = $tripStops->first();
+            $lastStop = $tripStops->last();
+
+            // Store the stop sequence for comparison
+            $trip->stop_sequence = $tripStops->pluck('stop_sequence')->toArray();
+            $trip->full_name = $firstStop->stop_name . ' → ' . $lastStop->stop_name;
+
+            return $trip;
+        })->filter();
+    }
 
     // If selected trip, use its stop sequence as reference
     $referenceSequence = null;
@@ -139,10 +182,35 @@ Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id
     $trip = $trip_id ? $enhancedTrips->where('trip_id', $trip_id)->first() : $groupedTrips->first();
 
     // Fetch stops for the selected trip
-    $stops = $trip ? Stop::join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
-        ->where('stop_times.trip_id', $trip->trip_id)
-        ->orderBy('stop_times.stop_sequence')
-        ->get(['stops.*', 'stop_times.stop_sequence']) : [];
+    if ($trip) {
+        if ($database) {
+            $db = DB::connection($database);
+            $stops = $db->table('stops')
+                ->join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
+                ->where('stop_times.trip_id', $trip->trip_id)
+                ->orderBy('stop_times.stop_sequence')
+                ->get(['stops.*', 'stop_times.stop_sequence']);
+        } else {
+            $stops = Stop::join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
+                ->where('stop_times.trip_id', $trip->trip_id)
+                ->orderBy('stop_times.stop_sequence')
+                ->get(['stops.*', 'stop_times.stop_sequence']);
+        }
+    } else {
+        $stops = [];
+    }
+
+    // Add debug information
+    if ($database) {
+        \Log::info('Liepaja route details:', [
+            'route_id' => $route_id,
+            'trip_id' => $trip_id,
+            'trips_count' => $trips->count(),
+            'enhanced_trips_count' => $enhancedTrips->count(),
+            'stops_count' => count($stops),
+            'selected_trip' => $trip ? $trip->trip_id : null
+        ]);
+    }
 
     // Render the Inertia view with the data
     return Inertia::render('RouteDetails', [
@@ -150,18 +218,65 @@ Route::get('/route/details/{route_id}/{trip_id?}', function ($route_id, $trip_id
         'trips' => $groupedTrips->values(),
         'selectedTrip' => $trip,
         'stops' => $stops,
+        'database' => $database, // Pass the database name to the frontend
     ]);
 })->name('route.details');
 
 // Get Stops for a Specific Trip
-Route::get('/route/details/{route_id}/{trip_id}/stops', function ($route_id, $trip_id) {
-    $stops = Stop::join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
-        ->where('stop_times.trip_id', $trip_id)
-        ->orderBy('stop_times.stop_sequence')
-        ->get(['stops.*', 'stop_times.arrival_time', 'stop_times.departure_time']);
+Route::get('/route/details/{route_id}/{trip_id}/stops', function ($route_id, $trip_id, Request $request) {
+    $database = $request->query('database');
+
+    if ($database) {
+        $db = DB::connection($database);
+        $stops = $db->table('stops')
+            ->join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
+            ->where('stop_times.trip_id', $trip_id)
+            ->orderBy('stop_times.stop_sequence')
+            ->get(['stops.*', 'stop_times.arrival_time', 'stop_times.departure_time']);
+
+        // Add debug logging
+        \Log::info('Fetching Liepaja stops:', [
+            'route_id' => $route_id,
+            'trip_id' => $trip_id,
+            'stops_count' => $stops->count(),
+            'database' => $database
+        ]);
+    } else {
+        $stops = Stop::join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
+            ->where('stop_times.trip_id', $trip_id)
+            ->orderBy('stop_times.stop_sequence')
+            ->get(['stops.*', 'stop_times.arrival_time', 'stop_times.departure_time']);
+    }
 
     return response()->json($stops);
 })->name('route.trip.stops');
+
+// Get routes with optional database parameter
+Route::get('/api/routes', function (Request $request) {
+    $type = $request->query('type');
+    $database = $request->query('database');
+
+    // If a specific database is requested, use that connection
+    if ($database) {
+        $query = DB::connection($database)->table('routes');
+    } else {
+        $query = Route::query();
+    }
+
+    if ($type) {
+        if ($type === 'trolleybus') {
+            $query->where('route_id', 'LIKE', '%trol%');
+        } else {
+            $query->where('route_id', 'LIKE', '%' . $type . '%');
+        }
+    }
+
+    $query->where('route_short_name', '!=', '99'); // Ignore route 99
+
+    return response()->json(
+        $query->get(['route_id', 'route_short_name', 'route_long_name', 'route_color'])
+    );
+});
 
 // Get Stop Times for a Specific Stop and Route
 Route::get('/stop/times/{stop_id}', function (Request $request, $stop_id) {
@@ -170,14 +285,22 @@ Route::get('/stop/times/{stop_id}', function (Request $request, $stop_id) {
     $type = $request->query('type', 'workdays');
     $route_id = $request->query('route_id');
     $trip_id = $request->query('trip_id');
+    $database = $request->query('database');
 
     if (!$route_id || !$trip_id) {
         Log::error('Route ID or Trip ID is missing');
         return response()->json(['error' => 'Route ID and Trip ID are required'], 400);
     }
 
+    // Use the specified database connection if provided
+    if ($database) {
+        $db = DB::connection($database);
+    } else {
+        $db = DB::connection();
+    }
+
     // Get the reference trip's stops sequence
-    $referenceStops = DB::table('stop_times')
+    $referenceStops = $db->table('stop_times')
         ->where('trip_id', $trip_id)
         ->orderBy('stop_sequence')
         ->pluck('stop_id', 'stop_sequence');
@@ -187,7 +310,7 @@ Route::get('/stop/times/{stop_id}', function (Request $request, $stop_id) {
     }
 
     // === Determine active service IDs for the route ===
-    $calendarQuery = DB::table('calendar');
+    $calendarQuery = $db->table('calendar');
 
     if ($type === 'weekends') {
         $calendarQuery->where(function ($query) {
@@ -204,12 +327,12 @@ Route::get('/stop/times/{stop_id}', function (Request $request, $stop_id) {
     $activeServiceIds = $calendarQuery->pluck('service_id');
     $today = now()->format('Ymd');
 
-    $addedServices = DB::table('calendar_dates')
+    $addedServices = $db->table('calendar_dates')
         ->where('date', $today)
         ->where('exception_type', 1)
         ->pluck('service_id');
 
-    $removedServices = DB::table('calendar_dates')
+    $removedServices = $db->table('calendar_dates')
         ->where('date', $today)
         ->where('exception_type', 2)
         ->pluck('service_id');
@@ -221,7 +344,7 @@ Route::get('/stop/times/{stop_id}', function (Request $request, $stop_id) {
     }
 
     // Get all trips for this route with active services
-    $potentialTrips = DB::table('trips')
+    $potentialTrips = $db->table('trips')
         ->where('route_id', $route_id)
         ->whereIn('service_id', $finalServiceIds)
         ->pluck('trip_id');
@@ -229,7 +352,7 @@ Route::get('/stop/times/{stop_id}', function (Request $request, $stop_id) {
     // Filter trips to only those that have exactly the same stops in the same sequence
     $matchingTripIds = collect();
     foreach ($potentialTrips as $potentialTripId) {
-        $tripStops = DB::table('stop_times')
+        $tripStops = $db->table('stop_times')
             ->where('trip_id', $potentialTripId)
             ->orderBy('stop_sequence')
             ->pluck('stop_id', 'stop_sequence');
@@ -245,7 +368,7 @@ Route::get('/stop/times/{stop_id}', function (Request $request, $stop_id) {
     }
 
     // === Fetch stop_times for the matching trips and the specific stop ===
-    $stopTimes = DB::table('stop_times')
+    $stopTimes = $db->table('stop_times')
         ->whereIn('trip_id', $matchingTripIds)
         ->where('stop_id', $stop_id)
         ->orderBy('departure_time')
@@ -277,20 +400,27 @@ Route::get('/stop/times/{stop_id}', function (Request $request, $stop_id) {
 
 // Get Stop Times by Departure Time
 Route::get('/stoptimes', function (Request $request) {
-
     $trip_id = $request->query('trip_id');
     $stop_id = $request->query('stop_id');
     $departure_time = $request->query('departure_time');
+    $database = $request->query('database');
 
-    Log::info('Request received for /stoptimes. Specific Trip ID: ' . $trip_id . ', Stop ID: ' . $stop_id . ', Departure Time: ' . $departure_time);
+    Log::info('Request received for /stoptimes. Specific Trip ID: ' . $trip_id . ', Stop ID: ' . $stop_id . ', Departure Time: ' . $departure_time . ', Database: ' . $database);
 
     if (!$trip_id || !$stop_id || !$departure_time) {
         Log::error('Missing parameters for /stoptimes request. Required: trip_id, stop_id, departure_time.');
         return response()->json(['error' => 'Trip ID, Stop ID and Departure Time are required'], 400);
     }
 
+    // Use the specified database connection if provided
+    if ($database) {
+        $db = DB::connection($database);
+    } else {
+        $db = DB::connection();
+    }
+
     // Fetch the route_id associated with the provided trip_id
-    $tripDetails = DB::table('trips')
+    $tripDetails = $db->table('trips')
         ->where('trip_id', $trip_id)
         ->first(['route_id', 'shape_id']);
 
@@ -303,7 +433,7 @@ Route::get('/stoptimes', function (Request $request) {
     $foundShapeId = $tripDetails->shape_id;
 
     //fetches all stop times for this specific provided trip_id
-    $stopTimes = DB::table('stop_times')
+    $stopTimes = $db->table('stop_times')
         ->join('stops', 'stop_times.stop_id', '=', 'stops.stop_id')
         ->where('stop_times.trip_id', $trip_id) // Use the specific trip_id directly
         ->orderBy('stop_times.stop_sequence')
@@ -329,12 +459,10 @@ Route::get('/stoptimes', function (Request $request) {
         'initialTripId' => $trip_id, // Use the specific trip ID passed
         'routeId' => $foundRouteId,
         'selectedStopId' => $stop_id,
-        'selectedDepartureTime' => $departure_time
+        'selectedDepartureTime' => $departure_time,
+        'database' => $database // Pass the database to the frontend
     ]);
 })->name('stoptimes');
-
-
-
 
 Route::get('/route/map/{route_id}/{trip_id}', function ($route_id, $trip_id) {
     // Get route info
@@ -371,7 +499,6 @@ Route::get('/route/map/{route_id}/{trip_id}', function ($route_id, $trip_id) {
     ]);
 })->name('route.map');
 
-
 // Import routes
 Route::post('/import/{type}', [GraphicController::class, 'importExcelData']);
 
@@ -382,19 +509,28 @@ Route::middleware('auth')->group(function () {
     Route::delete('/settings', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
-
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
     Route::post('/register', [RegisteredUserController::class, 'store'])->name('register.store');
 });
 
 Route::get('/api/stops', function () {
-    $stops = Stop::select('stop_id', 'stop_name')
-        ->orderBy('stop_name')
-        ->get();
+    $database = request()->query('database');
+
+    // If a specific database is requested, use that connection
+    if ($database) {
+        $stops = DB::connection($database)
+            ->table('stops')
+            ->select('stop_id', 'stop_name')
+            ->orderBy('stop_name')
+            ->get();
+    } else {
+        $stops = Stop::select('stop_id', 'stop_name')
+            ->orderBy('stop_name')
+            ->get();
+    }
 
     return response()->json($stops);
 });
-
 
 Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::resource('users', UserController::class);
@@ -403,8 +539,6 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/news', [App\Http\Controllers\Admin\NewsController::class, 'index'])->name('news');
     Route::post('/news/scrape', [App\Http\Controllers\Admin\NewsController::class, 'scrape'])->name('news.scrape');
 });
-
-
 
 Route::middleware(['auth'])->group(function () {
     Route::post('/saved-routes', [SavedRouteController::class, 'store'])->name('saved-routes.store');
@@ -428,7 +562,84 @@ Route::match(['get', 'post'], '/search-route', [RouteController::class, 'searchR
 Route::get('/route/{id}', [RouteController::class, 'show'])->name('route.show');
 
 // Stop search endpoints
-Route::get('/api/possible-destinations', [RouteController::class, 'getPossibleDestinations'])->name('api.possible-destinations');
+Route::get('/api/possible-destinations', function (Request $request) {
+    $from = $request->query('from');
+    $type = $request->query('type');
+    $database = $request->query('database');
+
+    if (!$from) {
+        return response()->json([]);
+    }
+
+    // Use the specified database connection if provided
+    if ($database) {
+        $db = DB::connection($database);
+
+        // First, find all routes that pass through the 'from' stop
+        $fromStop = $db->table('stops')
+            ->where('stop_name', $from)
+            ->first();
+
+        if (!$fromStop) {
+            return response()->json([]);
+        }
+
+        // Get all trips that pass through this stop
+        $trips = $db->table('stop_times')
+            ->where('stop_id', $fromStop->stop_id)
+            ->join('trips', 'stop_times.trip_id', '=', 'trips.trip_id');
+
+        if ($type) {
+            if ($type === 'trolleybus') {
+                $trips->where('trips.route_id', 'LIKE', '%trol%');
+            } else {
+                $trips->where('trips.route_id', 'LIKE', '%' . $type . '%');
+            }
+        }
+
+        $tripIds = $trips->pluck('trips.trip_id');
+
+        // Get all stops that are part of these trips
+        $possibleStops = $db->table('stops')
+            ->join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
+            ->whereIn('stop_times.trip_id', $tripIds)
+            ->where('stops.stop_name', '!=', $from)
+            ->select('stops.stop_id', 'stops.stop_name')
+            ->distinct()
+            ->get();
+
+    } else {
+        // Use default connection for Riga
+        $fromStop = Stop::where('stop_name', $from)->first();
+
+        if (!$fromStop) {
+            return response()->json([]);
+        }
+
+        $trips = StopTime::where('stop_id', $fromStop->stop_id)
+            ->join('trips', 'stop_times.trip_id', '=', 'trips.trip_id');
+
+        if ($type) {
+            if ($type === 'trolleybus') {
+                $trips->where('trips.route_id', 'LIKE', '%trol%');
+            } else {
+                $trips->where('trips.route_id', 'LIKE', '%' . $type . '%');
+            }
+        }
+
+        $tripIds = $trips->pluck('trips.trip_id');
+
+        $possibleStops = Stop::join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
+            ->whereIn('stop_times.trip_id', $tripIds)
+            ->where('stops.stop_name', '!=', $from)
+            ->select('stops.stop_id', 'stops.stop_name')
+            ->distinct()
+            ->get();
+    }
+
+    return response()->json($possibleStops);
+});
+
 Route::match(['get', 'post'], '/bus/search', [RouteController::class, 'searchBus'])->name('bus.search');
 Route::match(['get', 'post'], '/trolleybus/search', [RouteController::class, 'searchTrolleybus'])->name('trolleybus.search');
 Route::match(['get', 'post'], '/tram/search', [RouteController::class, 'searchTram'])->name('tram.search');

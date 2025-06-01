@@ -13,6 +13,7 @@ const selectedStopId = ref(props.selectedStopId || '');
 const selectedDepartureTime = ref(props.selectedDepartureTime || '');
 const routeId = ref(props.routeId || '');
 const error = ref(props.error || '');
+const database = ref(props.database);
 
 // Theme Management
 const currentTheme = ref('light');
@@ -66,7 +67,8 @@ const matchingTrips = computed(() => {
 });
 
 const goBack = () => {
-    router.visit(`/route/details/${routeId.value}`);
+    const url = `/route/details/${routeId.value}${database.value ? `?database=${database.value}` : ''}`;
+    router.visit(url);
 };
 
 const getTransportTypeFromRouteId = (routeId) => {
@@ -74,6 +76,17 @@ const getTransportTypeFromRouteId = (routeId) => {
     if (routeId.includes('trol')) return 'trolleybus';
     if (routeId.includes('tram')) return 'tram';
     return null;
+};
+
+// Update any navigation or API calls to include the database parameter
+const handleTimeClick = (time) => {
+    if (!time.trip_id || !time.departure_time) {
+        console.error('Missing required data for time click');
+        return;
+    }
+
+    const url = `/stoptimes?trip_id=${time.trip_id}&stop_id=${selectedStopId.value}&departure_time=${time.departure_time}${database.value ? `&database=${database.value}` : ''}`;
+    router.visit(url);
 };
 </script>
 
