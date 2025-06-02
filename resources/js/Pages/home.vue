@@ -716,7 +716,7 @@ const saveSelectedTimes = async () => {
                             <span class="badge badge-primary">{{ saved.time }}</span>
                         </td>
                         <td>
-                            <button @click.stop="deleteSavedTime(saved.id.split('-')[0])" class="btn btn-error btn-xs">
+                            <button @click.stop="deleteSavedTime(saved.id)" class="btn btn-error btn-xs">
                                 {{ t('delete') }}
                             </button>
                         </td>

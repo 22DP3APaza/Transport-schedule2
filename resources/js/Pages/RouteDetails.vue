@@ -212,7 +212,8 @@ const saveSelectedTimes = async () => {
             body: JSON.stringify({
                 trip_id: selectedTrip.value.trip_id,
                 stop_id: selectedStop.value.stop_id,
-                times: selectedTimes.value // This is the array of selected departure times
+                times: selectedTimes.value,
+                schedule_types: selectedTimes.value.map(() => showWorkdays.value ? 'workday' : 'weekend')
             })
         });
 

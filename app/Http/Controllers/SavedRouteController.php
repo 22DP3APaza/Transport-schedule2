@@ -19,8 +19,8 @@ class SavedRouteController extends Controller
             'stop_id' => 'required|string',
             'times' => 'required|array',      // 'times' should be an array
             'times.*' => 'string',            // Each item in the 'times' array should be a string
-            'schedule_types' => 'required|array', // Add schedule_types validation
-            'schedule_types.*' => 'string',    // Each schedule type should be a string
+            'schedule_types' => 'array|nullable', // Make schedule_types optional
+            'schedule_types.*' => 'string|nullable',    // Each schedule type should be a string
         ]);
 
         // Ensure the user is authenticated
@@ -38,12 +38,22 @@ class SavedRouteController extends Controller
         ]);
 
         // 3. Assign the array of times with their schedule types
-        $savedRecord->saved_times = array_map(function($time, $scheduleType) {
-            return [
-                'time' => $time,
-                'schedule_type' => $scheduleType
-            ];
-        }, $validatedData['times'], $validatedData['schedule_types']);
+        if (isset($validatedData['schedule_types'])) {
+            $savedRecord->saved_times = array_map(function($time, $scheduleType) {
+                return [
+                    'time' => $time,
+                    'schedule_type' => $scheduleType
+                ];
+            }, $validatedData['times'], $validatedData['schedule_types']);
+        } else {
+            // If no schedule types provided, just save the times
+            $savedRecord->saved_times = array_map(function($time) {
+                return [
+                    'time' => $time,
+                    'schedule_type' => 'workday' // Default to workday
+                ];
+            }, $validatedData['times']);
+        }
 
         // 4. Save the record to the database.
         $savedRecord->save();
@@ -135,7 +145,12 @@ class SavedRouteController extends Controller
             return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
-        $savedRecord = UserSavedStopTime::where('id', $id)
+        // Split the ID to get the record ID and the time to remove
+        $parts = explode('-', $id);
+        $recordId = $parts[0];
+        $timeToRemove = $parts[1] ?? null;
+
+        $savedRecord = UserSavedStopTime::where('id', $recordId)
                                         ->where('user_id', Auth::id()) // Ensure user owns the record
                                         ->first();
 
@@ -143,7 +158,26 @@ class SavedRouteController extends Controller
             return response()->json(['message' => 'Saved record not found or unauthorized.'], 404);
         }
 
-        $savedRecord->delete();
+        if ($timeToRemove) {
+            // Remove only the specific time from the saved_times array
+            $savedTimes = collect($savedRecord->saved_times);
+            $updatedTimes = $savedTimes->filter(function ($timeData) use ($timeToRemove) {
+                $time = is_array($timeData) ? $timeData['time'] : $timeData;
+                return $time !== $timeToRemove;
+            })->values()->all();
+
+            if (empty($updatedTimes)) {
+                // If no times left, delete the entire record
+                $savedRecord->delete();
+            } else {
+                // Update with remaining times
+                $savedRecord->saved_times = $updatedTimes;
+                $savedRecord->save();
+            }
+        } else {
+            // If no specific time provided, delete the entire record
+            $savedRecord->delete();
+        }
 
         return response()->json(['status' => 'success', 'message' => 'Stop time deleted successfully.']);
     }
