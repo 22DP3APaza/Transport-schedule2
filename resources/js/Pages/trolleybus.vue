@@ -51,8 +51,11 @@ const fetchStops = async () => {
   try {
     isLoadingStops.value = true;
     const [stopsResponse] = await Promise.all([
-      axios.get('/api/stops'),
+      axios.get('/api/stops', {
+        params: { type: 'trolleybus' }
+      }),
     ]);
+
     // Get unique stops from API
     const apiStops = stopsResponse.data.reduce((acc, stop) => {
       if (!acc.some(s => s.stop_name.toLowerCase() === stop.stop_name.toLowerCase())) {
@@ -60,10 +63,28 @@ const fetchStops = async () => {
       }
       return acc;
     }, []);
+
     // Extract stops from route names
-    const routeStops = extractStopsFromRoutes(page.props.routes || []);
-    // Combine and deduplicate
-    stops.value = combineStops(apiStops, routeStops);
+    const routeStops = extractStopsFromRoutes(routes.value);
+
+    // Extract stops from trip headsigns
+    const tripHeadsignStops = [];
+    routes.value.forEach(route => {
+      if (route.trip_headsign) {
+        const parts = route.trip_headsign.split(' - ').map(part => part.trim());
+        parts.forEach(part => {
+          if (!tripHeadsignStops.some(s => s.stop_name.toLowerCase() === part.toLowerCase())) {
+            tripHeadsignStops.push({
+              stop_name: part,
+              from_route: true
+            });
+          }
+        });
+      }
+    });
+
+    // Combine all stops and deduplicate
+    stops.value = combineStops(apiStops, [...routeStops, ...tripHeadsignStops]);
   } catch (error) {
     console.error('Error fetching stops:', error);
   } finally {
@@ -115,12 +136,19 @@ watch(to, async (newVal) => {
 const selectFromStop = (stop) => {
   from.value = stop.stop_name;
   showFromDropdown.value = false;
+  // Clear the 'to' field when selecting a new 'from' stop
+  to.value = '';
+  filteredToStops.value = [];
+  // Unfocus the input
+  document.activeElement.blur();
 };
 
 // Select a stop from the to dropdown
 const selectToStop = (stop) => {
   to.value = stop.stop_name;
   showToDropdown.value = false;
+  // Unfocus the input
+  document.activeElement.blur();
 };
 
 // Switch from and to values
@@ -128,6 +156,17 @@ const switchStops = () => {
   const temp = from.value;
   from.value = to.value;
   to.value = temp;
+
+  // Add any missing stops to our local stops array
+  const fromStop = filteredToStops.value.find(s => s.stop_name === from.value);
+  const toStop = filteredFromStops.value.find(s => s.stop_name === to.value);
+
+  if (fromStop && !stops.value.some(s => s.stop_name.toLowerCase() === fromStop.stop_name.toLowerCase())) {
+    stops.value.push(fromStop);
+  }
+  if (toStop && !stops.value.some(s => s.stop_name.toLowerCase() === toStop.stop_name.toLowerCase())) {
+    stops.value.push(toStop);
+  }
 
   // Also switch the filtered stops if needed
   const tempFiltered = [...filteredFromStops.value];

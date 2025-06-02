@@ -25,8 +25,20 @@ const routeDetailsUrl = (route) => {
     if (type.value === 'train' && route.trip_id) {
         return `/train/details/${route.route_id}/${route.trip_id}`;
     }
-    // For other transport types, use the regular route.details endpoint
-    return route('route.details', { route_id: route.route_id });
+
+    // Get the database from the URL if it exists
+    const urlParams = new URLSearchParams(window.location.search);
+    const database = urlParams.get('database');
+
+    // Base URL for route details
+    let url = `/route/details/${route.route_id}`;
+
+    // Add database parameter if it exists
+    if (database) {
+        url += `?database=${database}`;
+    }
+
+    return url;
 };
 
 // Get transport type for a specific route

@@ -66,11 +66,13 @@ const fetchRoutes = async () => {
         routes.value = response.data || [];
       }
     } else {
-      // For Liepaja, use the Liepaja database
+      // For Liepaja or Rezekne, use the appropriate database
       const response = await axios.get('/api/routes', {
         params: {
           type: 'bus',
-          database: 'transport_schedule_liepaja'
+          database: selectedCity.value === 'liepaja' ?
+            'transport_schedule_liepaja' :
+            'transport_schedule_rezekne'
         }
       });
       routes.value = response.data || [];
@@ -102,7 +104,11 @@ const fetchStops = async () => {
       axios.get('/api/stops', {
         params: {
           type: 'bus',
-          database: selectedCity.value === 'liepaja' ? 'transport_schedule_liepaja' : undefined
+          database: selectedCity.value === 'riga' ?
+            undefined :
+            selectedCity.value === 'liepaja' ?
+              'transport_schedule_liepaja' :
+              'transport_schedule_rezekne'
         }
       })
     ]);
@@ -118,8 +124,24 @@ const fetchStops = async () => {
     // Extract stops from route names
     const routeStops = extractStopsFromRoutes(routes.value);
 
-    // Combine and deduplicate
-    stops.value = combineStops(apiStops, routeStops);
+    // Extract stops from trip headsigns
+    const tripHeadsignStops = [];
+    routes.value.forEach(route => {
+      if (route.trip_headsign) {
+        const parts = route.trip_headsign.split(' - ').map(part => part.trim());
+        parts.forEach(part => {
+          if (!tripHeadsignStops.some(s => s.stop_name.toLowerCase() === part.toLowerCase())) {
+            tripHeadsignStops.push({
+              stop_name: part,
+              from_route: true
+            });
+          }
+        });
+      }
+    });
+
+    // Combine all stops and deduplicate
+    stops.value = combineStops(apiStops, [...routeStops, ...tripHeadsignStops]);
   } catch (error) {
     console.error('Error fetching stops:', error);
   } finally {
@@ -128,9 +150,23 @@ const fetchStops = async () => {
 };
 
 // Sort the routes
-const sortedRoutes = computed(() =>
-  [...routes.value].sort((a, b) => Number(a.route_short_name) - Number(b.route_short_name))
-);
+const sortedRoutes = computed(() => {
+  const routesList = [...routes.value];
+
+  // Sort based on the selected city
+  if (selectedCity.value === 'liepaja' || selectedCity.value === 'rezekne') {
+    // For Liepaja and Rezekne, first sort by route_short_name numerically
+    return routesList.sort((a, b) => {
+      // Extract numbers from route_short_name, defaulting to 0 if not a number
+      const aNum = parseInt(a.route_short_name) || 0;
+      const bNum = parseInt(b.route_short_name) || 0;
+      return aNum - bNum;
+    });
+  } else {
+    // For Riga, use the original numeric sorting
+    return routesList.sort((a, b) => Number(a.route_short_name) - Number(b.route_short_name));
+  }
+});
 
 // Watch for changes in from input
 watch(from, async (newVal) => {
@@ -152,12 +188,41 @@ watch(to, async (newVal) => {
         params: {
           from: from.value,
           type: 'bus',
-          database: selectedCity.value === 'liepaja' ? 'transport_schedule_liepaja' : undefined
+          database: selectedCity.value === 'riga' ?
+            undefined :
+            selectedCity.value === 'liepaja' ?
+              'transport_schedule_liepaja' :
+              'transport_schedule_rezekne'
         }
       });
-      filteredToStops.value = response.data.filter(stop =>
-        stop.stop_name.toLowerCase().includes(newVal.toLowerCase())
-      ).slice(0, 5);
+
+      // Get destinations from API response
+      const apiDestinations = response.data;
+
+      // Get destinations from route names that match the search
+      const routeDestinations = routes.value
+        .filter(route => {
+          const [fromStop, toStop] = route.route_long_name.split(' - ').map(s => s.trim());
+          return fromStop.toLowerCase() === from.value.toLowerCase();
+        })
+        .map(route => {
+          const [, toStop] = route.route_long_name.split(' - ').map(s => s.trim());
+          return { stop_name: toStop, from_route: true };
+        });
+
+      // Combine API and route destinations, ensuring uniqueness
+      const allDestinations = [...apiDestinations];
+      routeDestinations.forEach(dest => {
+        if (!allDestinations.some(d => d.stop_name.toLowerCase() === dest.stop_name.toLowerCase())) {
+          allDestinations.push(dest);
+        }
+      });
+
+      // Filter combined destinations based on search input
+      filteredToStops.value = allDestinations
+        .filter(stop => stop.stop_name.toLowerCase().includes(newVal.toLowerCase()))
+        .slice(0, 5);
+
       showToDropdown.value = filteredToStops.value.length > 0;
     } catch (error) {
       console.error('Error fetching possible destinations:', error);
@@ -175,12 +240,16 @@ const selectFromStop = (stop) => {
   // Clear the 'to' field when selecting a new 'from' stop
   to.value = '';
   filteredToStops.value = [];
+  // Unfocus the input
+  document.activeElement.blur();
 };
 
 // Select a stop from the to dropdown
 const selectToStop = (stop) => {
   to.value = stop.stop_name;
   showToDropdown.value = false;
+  // Unfocus the input
+  document.activeElement.blur();
 };
 
 // Switch from and to values
@@ -188,6 +257,17 @@ const switchStops = () => {
   const temp = from.value;
   from.value = to.value;
   to.value = temp;
+
+  // Add any missing stops to our local stops array
+  const fromStop = filteredToStops.value.find(s => s.stop_name === from.value);
+  const toStop = filteredFromStops.value.find(s => s.stop_name === to.value);
+
+  if (fromStop && !stops.value.some(s => s.stop_name.toLowerCase() === fromStop.stop_name.toLowerCase())) {
+    stops.value.push(fromStop);
+  }
+  if (toStop && !stops.value.some(s => s.stop_name.toLowerCase() === toStop.stop_name.toLowerCase())) {
+    stops.value.push(toStop);
+  }
 
   // Also switch the filtered stops if needed
   const tempFiltered = [...filteredFromStops.value];
@@ -198,11 +278,17 @@ const switchStops = () => {
 // Search for the matching route and navigate
 const searchRoute = () => {
   if (from.value && to.value) {
-    router.post('/bus/search', {
+    const params = {
       from: from.value,
       to: to.value,
-      database: selectedCity.value === 'liepaja' ? 'transport_schedule_liepaja' : undefined
-    });
+      database: selectedCity.value === 'liepaja' ?
+        'transport_schedule_liepaja' :
+        selectedCity.value === 'rezekne' ?
+          'transport_schedule_rezekne' :
+          undefined
+    };
+
+    router.post('/bus/search', params);
   } else {
     alert(t('pleaseEnterValues'));
   }
@@ -218,9 +304,12 @@ const isActive = (routeName) => {
 
 const routeDetailsUrl = (routeId) => {
   const baseUrl = route('route.details', { route_id: routeId });
-  return selectedCity.value === 'liepaja' ?
-    `${baseUrl}?database=transport_schedule_liepaja` :
-    baseUrl;
+  if (selectedCity.value === 'liepaja') {
+    return `${baseUrl}?database=transport_schedule_liepaja`;
+  } else if (selectedCity.value === 'rezekne') {
+    return `${baseUrl}?database=transport_schedule_rezekne`;
+  }
+  return baseUrl;
 };
 
 // Get color based on transport type
@@ -398,6 +487,13 @@ const changeLanguage = (language) => {
         >
           {{ t('liepaja') }}
         </button>
+        <button
+          class="btn"
+          :class="{ 'btn-primary': selectedCity === 'rezekne' }"
+          @click="selectedCity = 'rezekne'"
+        >
+          {{ t('rezekne') }}
+        </button>
       </div>
 
       <div class="flex items-center gap-4">
@@ -518,7 +614,7 @@ const changeLanguage = (language) => {
             @click="() => router.visit(routeDetailsUrl(route.route_id))"
             :title="route.route_long_name"
             class="btn btn-square w-10 h-10 flex items-center justify-center text-white hover:brightness-90 transition rounded-md shadow text-sm font-bold"
-            :style="{ backgroundColor: getTransportColor('bus') }">
+            :style="{ backgroundColor: route.route_color ? `#${route.route_color}` : getTransportColor('bus') }">
             {{ route.route_short_name }}
           </button>
         </template>

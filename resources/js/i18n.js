@@ -83,6 +83,9 @@ const messages = {
     currentPassword: "Current password",
     DeleteProfile: "Delete profile",
     toggleTheme:"Toggle Theme",
+    searchResults: 'Search results',
+    routesFrom: 'Routes from',
+    trainTrip: 'Train trip',
 
     // Errors
     errorFetchingStops: 'Error fetching stops:',
@@ -276,6 +279,7 @@ const messages = {
     selectCity: 'Select City',
     riga: 'Riga',
     liepaja: 'Liepaja',
+    rezekne: 'Rezekne',
   },
   lv: {
     // Transport types
@@ -316,6 +320,9 @@ const messages = {
     stopTimesFor: 'Pieturas laiki priekš',
     noStopTimesAvailable: 'Nav pieejamu pieturas laiku',
     noMatchingTrips: 'Nav atrastu atbilstošu maršrutu',
+    searchResults: 'Meklēšanas rezultāti',
+    routesFrom: 'Maršrutu no',
+    trainTrip: 'Vilciena reiss',
 
     // Settings
     settings: 'Iestatījumi',
@@ -552,6 +559,7 @@ const messages = {
     selectCity: 'Izvēlēties pilsētu',
     riga: 'Rīga',
     liepaja: 'Liepāja',
+    rezekne: 'Rēzekne',
   }
 }
 

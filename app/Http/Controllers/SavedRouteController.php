@@ -19,6 +19,8 @@ class SavedRouteController extends Controller
             'stop_id' => 'required|string',
             'times' => 'required|array',      // 'times' should be an array
             'times.*' => 'string',            // Each item in the 'times' array should be a string
+            'schedule_types' => 'required|array', // Add schedule_types validation
+            'schedule_types.*' => 'string',    // Each schedule type should be a string
         ]);
 
         // Ensure the user is authenticated
@@ -35,8 +37,13 @@ class SavedRouteController extends Controller
             'stop_id' => $validatedData['stop_id'],
         ]);
 
-        // 3. Assign the array of times.
-        $savedRecord->saved_times = $validatedData['times'];
+        // 3. Assign the array of times with their schedule types
+        $savedRecord->saved_times = array_map(function($time, $scheduleType) {
+            return [
+                'time' => $time,
+                'schedule_type' => $scheduleType
+            ];
+        }, $validatedData['times'], $validatedData['schedule_types']);
 
         // 4. Save the record to the database.
         $savedRecord->save();
@@ -61,6 +68,7 @@ class SavedRouteController extends Controller
             ->join('stops', 'user_saved_stop_times.stop_id', '=', 'stops.stop_id')
             ->leftJoin('calendar', 'trips.service_id', '=', 'calendar.service_id')
             ->addSelect([
+                'routes.route_id',
                 'routes.route_short_name',
                 'routes.route_long_name',
                 'routes.route_color',
@@ -108,6 +116,7 @@ class SavedRouteController extends Controller
                 'id' => $item->id,
                 'trip_id' => $item->trip_id,
                 'stop_id' => $item->stop_id,
+                'route_id' => $item->route_id,
                 'route_name' => $item->route_long_name ?? $item->route_short_name,
                 'stop_name' => $item->stop_name,
                 'saved_times' => $item->saved_times,

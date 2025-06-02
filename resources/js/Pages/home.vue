@@ -21,6 +21,34 @@ const showTransportDropdown = ref(false); // Control transport type dropdown vis
 // for displaying all user's saved times
 const userSavedTimes = ref([]);
 
+// Computed property to sort saved times
+const sortedSavedTimes = computed(() => {
+    // Create an array of individual time entries
+    const expandedTimes = userSavedTimes.value.flatMap(saved =>
+        saved.saved_times.map(timeData => ({
+            id: `${saved.id}-${typeof timeData === 'string' ? timeData : timeData.time}`,
+            route_id: saved.route_id,
+            trip_id: saved.trip_id,
+            stop_id: saved.stop_id,
+            route_name: saved.route_name,
+            stop_name: saved.stop_name,
+            route_color: saved.route_color,
+            time: typeof timeData === 'string' ? timeData : timeData.time,
+            schedule_type: typeof timeData === 'string' ? 'workday' : timeData.schedule_type // Default to workday for old data
+        }))
+    );
+
+    // Sort by time
+    return expandedTimes.sort((a, b) => {
+        const [aHours, aMinutes] = a.time.split(':').map(Number);
+        const [bHours, bMinutes] = b.time.split(':').map(Number);
+        if (aHours === bHours) {
+            return aMinutes - bMinutes;
+        }
+        return aHours - bHours;
+    });
+});
+
 const transportTypes = [
     { id: 'all', name: t('all'), color: '#3490dc' },
     { id: 'bus', name: t('bus'), color: '#DCA223' },
@@ -196,12 +224,16 @@ const selectFromStop = (stop) => {
     // Clear the 'to' field when changing 'from' stop
     to.value = '';
     filteredToStops.value = [];
+    // Unfocus the input
+    document.activeElement.blur();
 };
 
 // Select a stop from the to dropdown
 const selectToStop = (stop) => {
     to.value = stop.stop_name;
     showToDropdown.value = false;
+    // Unfocus the input
+    document.activeElement.blur();
 };
 
 // Switch from and to values
@@ -328,14 +360,39 @@ const deleteSavedTime = async (savedTimeId) => {
 };
 
 //Navigate to Route Details from Saved Time
-const viewSavedRoute = (saved) => {
-    if (!saved.route_id || !saved.trip_id || !saved.stop_id) {
-        console.error('Missing route, trip, or stop ID for navigation:', saved);
-        alert(t('missingDataForNavigation')); // New translation key
-        return;
+const viewSavedRoute = async (saved, selectedTime) => {
+    try {
+        // Convert Proxy to plain object and ensure we have all required properties
+        const savedData = {
+            route_id: saved?.route_id,
+            trip_id: saved?.trip_id,
+            stop_id: saved?.stop_id,
+            selected_time: selectedTime
+        };
+
+        // Now check if we have all required data
+        if (!savedData.route_id || !savedData.trip_id || !savedData.stop_id) {
+            console.error('Missing route, trip, or stop ID for navigation:', savedData);
+            alert(t('missingDataForNavigation'));
+            return;
+        }
+
+        // Construct the URL with database parameter if it exists
+        const database = page.props.database;
+        const baseUrl = `/route/details/${savedData.route_id}/${savedData.trip_id}`;
+        const url = database ? `${baseUrl}?database=${database}` : baseUrl;
+
+        // Navigate to the route details page with the specific time
+        router.visit(url, {
+            data: {
+                selected_stop_id: savedData.stop_id,
+                selected_time: savedData.selected_time
+            }
+        });
+    } catch (error) {
+        console.error('Error navigating to route:', error);
+        alert(t('errorNavigatingToRoute'));
     }
-    // Navigate to the route details page, passing route_id, trip_id, and selected_stop_id
-    router.visit(`/route/details/${saved.route_id}/${saved.trip_id}?selected_stop_id=${saved.stop_id}`);
 };
 
 // Watch for changes in transport type to refetch stops
@@ -382,6 +439,52 @@ const toggleTheme = () => {
 const changeLanguage = (language) => {
     locale.value = language;
     localStorage.setItem('language', language);
+};
+
+const saveSelectedTimes = async () => {
+    // Only allow saving if user is logged in
+    if (!page.props.auth.user) {
+        console.warn(t('loginToSaveTimes'));
+        showSaveModal.value = false;
+        return;
+    }
+
+    // Ensures selectedTimes is not empty
+    if (!selectedTrip.value || !selectedStop.value || selectedTimes.value.length === 0) {
+        console.warn(t('selectTimesFirst'));
+        showSaveModal.value = false;
+        return;
+    }
+
+    try {
+        const response = await fetch('/save-stop-times', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+            },
+            body: JSON.stringify({
+                trip_id: selectedTrip.value.trip_id,
+                stop_id: selectedStop.value.stop_id,
+                times: selectedTimes.value,
+                schedule_types: selectedTimes.value.map(() => showWorkdays ? 'workday' : 'weekend')
+            })
+        });
+
+        if (response.ok) {
+            console.log(t('timesSavedSuccessfully'));
+            fetchUserSavedTimes();
+            showSaveModal.value = false;
+        } else {
+            const errorData = await response.json();
+            console.error(t('errorSavingTimes'), errorData);
+            alert(`${t('errorSavingTimes')}: ${errorData.message || response.statusText}`);
+        }
+    } catch (error) {
+        console.error(error);
+        console.error(t('errorSavingTimes'));
+        alert(`${t('errorSavingTimes')}: ${error.message}`);
+    }
 };
 </script>
 
@@ -593,8 +696,9 @@ const changeLanguage = (language) => {
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="saved in userSavedTimes" :key="saved.id"
-                        @click="viewSavedRoute(saved)" class="cursor-pointer hover:bg-base-200 transition-colors duration-200">
+                    <tr v-for="saved in sortedSavedTimes" :key="saved.id"
+                        class="hover:bg-base-200 transition-colors duration-200 cursor-pointer"
+                        @click="viewSavedRoute(saved, saved.time)">
                         <td>
                             <div class="flex items-center gap-2">
                                 <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: '#' + saved.route_color }"></div>
@@ -603,21 +707,16 @@ const changeLanguage = (language) => {
                         </td>
                         <td>{{ saved.stop_name }}</td>
                         <td>
-                            <div class="flex gap-1">
-                                <span v-for="type in saved.schedule_type" :key="type"
-                                      class="badge badge-sm"
-                                      :class="type === 'workday' ? 'badge-primary' : 'badge-secondary'">
-                                    {{ t(type) }}
-                                </span>
-                            </div>
-                        </td>
-                        <td>
-                            <span v-for="(time, idx) in saved.saved_times" :key="idx" class="badge badge-primary mr-1">
-                                {{ time }}
+                            <span class="badge badge-sm"
+                                  :class="saved.schedule_type === 'workday' ? 'badge-primary' : 'badge-secondary'">
+                                {{ t(saved.schedule_type) }}
                             </span>
                         </td>
                         <td>
-                            <button @click.stop="deleteSavedTime(saved.id)" class="btn btn-error btn-xs">
+                            <span class="badge badge-primary">{{ saved.time }}</span>
+                        </td>
+                        <td>
+                            <button @click.stop="deleteSavedTime(saved.id.split('-')[0])" class="btn btn-error btn-xs">
                                 {{ t('delete') }}
                             </button>
                         </td>

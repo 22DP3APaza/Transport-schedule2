@@ -94,6 +94,8 @@ const selectFromStop = (station) => {
     to.value = '';
     selectedToStation.value = null;
     filteredToStations.value = [];
+    // Unfocus the input
+    document.activeElement.blur();
 };
 
 // Select a station from the to dropdown
@@ -101,6 +103,8 @@ const selectToStop = (station) => {
     to.value = station.stop_name;
     selectedToStation.value = station;
     showToDropdown.value = false;
+    // Unfocus the input
+    document.activeElement.blur();
 };
 
 // Switch from and to values

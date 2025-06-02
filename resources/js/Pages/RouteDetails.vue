@@ -122,7 +122,10 @@ const viewRouteOnMap = () => {
         console.error(t('missingDataForMapView'));
         return;
     }
-    router.visit(`/route/map/${routedata.value.route_id}/${selectedTrip.value.trip_id}`);
+    const database = page.props.database;
+    const baseUrl = `/route/map/${routedata.value.route_id}/${selectedTrip.value.trip_id}`;
+    const url = database ? `${baseUrl}?database=${database}` : baseUrl;
+    router.visit(url);
 };
 
 
@@ -403,7 +406,7 @@ const getTransportTypeFromRouteId = (id) => {
 <template>
     <Head :title="routeDisplayName" />
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <link rel="icon" type="image/png" href="/images/logo.webp">
+    <link rel="icon" type="image/png" href="/images/logo.png">
 
     <header class="navbar bg-base-100">
         <div class="navbar-start">
@@ -500,7 +503,7 @@ const getTransportTypeFromRouteId = (id) => {
                 </button>
                 <a
                     v-if="selectedStop"
-                    :href="`/route/details/${routedata.route_id}/${selectedStop.stop_id}/pdf?lang=${locale}`"
+                    :href="`/route/details/${routedata.route_id}/${selectedStop.stop_id}/pdf?lang=${locale}${page.props.database ? '&database=' + page.props.database : ''}`"
                     class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded inline-flex items-center"
                     target="_blank"
                 >

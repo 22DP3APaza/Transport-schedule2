@@ -124,7 +124,7 @@ Route::get('/route/details/{route_id}/{trip_id?}', function (Request $request, $
             return $trip;
         })->filter();
     } else {
-        // Fetch the route details
+        // Fetch the route details from the default database
         $route = ModelRoute::where('route_id', $route_id)
             ->firstOrFail(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
 
@@ -202,13 +202,14 @@ Route::get('/route/details/{route_id}/{trip_id?}', function (Request $request, $
 
     // Add debug information
     if ($database) {
-        \Log::info('Liepaja route details:', [
+        \Log::info('Route details:', [
             'route_id' => $route_id,
             'trip_id' => $trip_id,
             'trips_count' => $trips->count(),
             'enhanced_trips_count' => $enhancedTrips->count(),
             'stops_count' => count($stops),
-            'selected_trip' => $trip ? $trip->trip_id : null
+            'selected_trip' => $trip ? $trip->trip_id : null,
+            'database' => $database
         ]);
     }
 
@@ -464,38 +465,77 @@ Route::get('/stoptimes', function (Request $request) {
     ]);
 })->name('stoptimes');
 
-Route::get('/route/map/{route_id}/{trip_id}', function ($route_id, $trip_id) {
-    // Get route info
+Route::get('/route/map/{route_id}/{trip_id}', function (Request $request, $route_id, $trip_id) {
+    $database = $request->query('database');
+
+    if ($database) {
+        $db = DB::connection($database);
+
+        // Get route info from the specified database
+        $route = $db->table('routes')
+            ->where('route_id', $route_id)
+            ->first(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
+
+        if (!$route) {
+            abort(404);
+        }
+
+        // Get trip info to find the shape
+        $trip = $db->table('trips')
+            ->where('trip_id', $trip_id)
+            ->first(['trip_id', 'shape_id', 'trip_headsign']);
+
+        if (!$trip) {
+            abort(404);
+        }
+
+        // Get all shape points for this route
+        $shapePoints = $db->table('shapes')
+            ->where('shape_id', $trip->shape_id)
+            ->orderBy('shape_pt_sequence')
+            ->get(['shape_pt_lat', 'shape_pt_lon', 'shape_pt_sequence']);
+
+        // Get all stops with their coordinates for this trip
+        $stops = $db->table('stops')
+            ->join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
+            ->where('stop_times.trip_id', $trip_id)
+            ->orderBy('stop_times.stop_sequence')
+            ->get(['stops.stop_id', 'stops.stop_name', 'stops.stop_lat', 'stops.stop_lon', 'stop_times.stop_sequence']);
+
+        // Get all GTFS stops
+        $allStops = $db->table('stops')
+            ->orderBy('stop_name')
+            ->get(['stop_id', 'stop_name', 'stop_lat', 'stop_lon']);
+    } else {
+        // Original code for default database
     $route = ModelRoute::where('route_id', $route_id)->firstOrFail([
         'route_id', 'route_short_name', 'route_long_name', 'route_color'
     ]);
 
-    // Get trip info to find the shape
     $trip = Trip::where('trip_id', $trip_id)->firstOrFail([
         'trip_id', 'shape_id', 'trip_headsign'
     ]);
 
-    // Get all shape points for this route
     $shapePoints = DB::table('shapes')
         ->where('shape_id', $trip->shape_id)
         ->orderBy('shape_pt_sequence')
         ->get(['shape_pt_lat', 'shape_pt_lon', 'shape_pt_sequence']);
 
-    // Get all stops with their coordinates for this trip
     $stops = Stop::join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
         ->where('stop_times.trip_id', $trip_id)
         ->orderBy('stop_times.stop_sequence')
         ->get(['stops.stop_id', 'stops.stop_name', 'stops.stop_lat', 'stops.stop_lon', 'stop_times.stop_sequence']);
 
-    // Get all GTFS stops
     $allStops = Stop::orderBy('stop_name')->get(['stop_id', 'stop_name', 'stop_lat', 'stop_lon']);
+    }
 
     return Inertia::render('RouteMap', [
         'route' => $route,
         'trip' => $trip,
         'shapePoints' => $shapePoints,
         'stops' => $stops,
-        'allStops' => $allStops //  Pass to Vue
+        'allStops' => $allStops,
+        'database' => $database // Pass the database parameter to the frontend
     ]);
 })->name('route.map');
 
@@ -513,21 +553,40 @@ Route::middleware('auth')->group(function () {
     Route::post('/register', [RegisteredUserController::class, 'store'])->name('register.store');
 });
 
-Route::get('/api/stops', function () {
-    $database = request()->query('database');
+Route::get('/api/stops', function (Request $request) {
+    $database = $request->query('database');
+    $withCoordinates = $request->query('with_coordinates', false);
+    $type = $request->query('type');
+
+    // Define the columns to select
+    $columns = $withCoordinates ?
+        ['stops.stop_id', 'stops.stop_name', 'stops.stop_lat', 'stops.stop_lon'] :
+        ['stops.stop_id', 'stops.stop_name'];
 
     // If a specific database is requested, use that connection
     if ($database) {
-        $stops = DB::connection($database)
-            ->table('stops')
-            ->select('stop_id', 'stop_name')
-            ->orderBy('stop_name')
-            ->get();
+        $query = DB::connection($database)->table('stops');
     } else {
-        $stops = Stop::select('stop_id', 'stop_name')
-            ->orderBy('stop_name')
-            ->get();
+        $query = DB::table('stops');
     }
+
+    // Join with stop_times and trips to get stops that are actually used by the transport type
+    if ($type && $type !== 'all') {
+        $typePattern = $type === 'trolleybus' ? 'trol' : $type;
+        $query->join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
+              ->join('trips', 'stop_times.trip_id', '=', 'trips.trip_id')
+              ->join('routes', 'trips.route_id', '=', 'routes.route_id')
+              ->where('routes.route_id', 'LIKE', '%' . $typePattern . '%')
+              ->distinct();
+    }
+
+    // Select the appropriate columns
+    $query->select($columns);
+
+    // Order by stop name
+    $query->orderBy('stops.stop_name');
+
+    $stops = $query->get();
 
     return response()->json($stops);
 });
@@ -681,3 +740,61 @@ Route::get('/api/train/stops', [TrainController::class, 'getStops']);
 Route::get('/api/train/search-route/{fromStop}/{toStop}', [TrainController::class, 'searchRoute']);
 Route::get('/api/train/route/{routeId}/{tripId?}', [TrainController::class, 'getRouteDetails']);
 Route::get('/api/train/stop-times/{stopId}', [TrainController::class, 'getStopTimes']);
+
+// API Routes
+Route::prefix('api')->group(function () {
+    // ... existing routes ...
+
+    // Get routes for a stop
+    Route::get('/stop-routes/{stop_id}', function ($stop_id, Request $request) {
+        $database = $request->query('database');
+
+        if ($database) {
+            $db = DB::connection($database);
+
+            // Get all routes that pass through this stop
+            $routes = $db->table('routes')
+                ->join('trips', 'routes.route_id', '=', 'trips.route_id')
+                ->join('stop_times', 'trips.trip_id', '=', 'stop_times.trip_id')
+                ->where('stop_times.stop_id', $stop_id)
+                ->select('routes.route_id', 'routes.route_short_name', 'routes.route_long_name', 'routes.route_color')
+                ->distinct()
+                ->get();
+        } else {
+            // Use default database (Riga)
+            $routes = DB::table('routes')
+                ->join('trips', 'routes.route_id', '=', 'trips.route_id')
+                ->join('stop_times', 'trips.trip_id', '=', 'stop_times.trip_id')
+                ->where('stop_times.stop_id', $stop_id)
+                ->select('routes.route_id', 'routes.route_short_name', 'routes.route_long_name', 'routes.route_color')
+                ->distinct()
+                ->get();
+        }
+
+        return response()->json($routes);
+    });
+
+    // Get route_id for a trip
+    Route::get('/trip/{trip_id}/route', function ($trip_id, Request $request) {
+        $database = $request->query('database');
+
+        if ($database) {
+            $db = DB::connection($database);
+            $trip = $db->table('trips')
+                ->where('trip_id', $trip_id)
+                ->first(['route_id']);
+        } else {
+            $trip = DB::table('trips')
+                ->where('trip_id', $trip_id)
+                ->first(['route_id']);
+        }
+
+        if (!$trip) {
+            return response()->json(['error' => 'Trip not found'], 404);
+        }
+
+        return response()->json(['route_id' => $trip->route_id]);
+    });
+
+    // ... existing routes ...
+});

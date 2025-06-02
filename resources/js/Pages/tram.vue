@@ -15,6 +15,8 @@ const filteredToStops = ref([]);
 const showFromDropdown = ref(false);
 const showToDropdown = ref(false);
 const isLoadingStops = ref(false);
+const selectedCity = ref('riga');
+const isLoadingRoutes = ref(false);
 
 // Extract stop names from route names (format: "Stop1 - Stop2")
 const extractStopsFromRoutes = (routes) => {
@@ -48,12 +50,61 @@ const combineStops = (apiStops, routeStops) => {
   return allStops;
 };
 
+// Fetch routes for the selected city
+const fetchRoutes = async () => {
+  try {
+    isLoadingRoutes.value = true;
+    if (selectedCity.value === 'riga') {
+      // For Riga, first try to use routes from props
+      if (page.props.routes && page.props.routes.length > 0) {
+        routes.value = page.props.routes;
+      } else {
+        // If no props or empty, fetch from API
+        const response = await axios.get('/api/routes', {
+          params: { type: 'tram' }
+        });
+        routes.value = response.data || [];
+      }
+    } else {
+      // For Liepaja, use the Liepaja database
+      const response = await axios.get('/api/routes', {
+        params: {
+          type: 'tram',
+          database: 'transport_schedule_liepaja'
+        }
+      });
+      routes.value = response.data || [];
+    }
+  } catch (error) {
+    console.error('Error fetching routes:', error);
+    routes.value = [];
+  } finally {
+    isLoadingRoutes.value = false;
+  }
+};
+
+// Watch for city changes and save to localStorage
+watch(selectedCity, async (newCity) => {
+  // Clear current selections and refetch data for new city
+  from.value = '';
+  to.value = '';
+  filteredFromStops.value = [];
+  filteredToStops.value = [];
+  await fetchStops();
+  await fetchRoutes();
+});
+
 // Fetch stops data and combine with stops extracted from routes
 const fetchStops = async () => {
   try {
     isLoadingStops.value = true;
     const [stopsResponse] = await Promise.all([
-      axios.get('/api/stops'),
+      axios.get('/api/stops', {
+        params: {
+          type: 'tram',
+          database: selectedCity.value === 'liepaja' ? 'transport_schedule_liepaja' : undefined
+        }
+      })
     ]);
 
     // Get unique stops from API
@@ -65,10 +116,26 @@ const fetchStops = async () => {
     }, []);
 
     // Extract stops from route names
-    const routeStops = extractStopsFromRoutes(page.props.routes || []);
+    const routeStops = extractStopsFromRoutes(routes.value);
 
-    // Combine and deduplicate
-    stops.value = combineStops(apiStops, routeStops);
+    // Extract stops from trip headsigns
+    const tripHeadsignStops = [];
+    routes.value.forEach(route => {
+      if (route.trip_headsign) {
+        const parts = route.trip_headsign.split(' - ').map(part => part.trim());
+        parts.forEach(part => {
+          if (!tripHeadsignStops.some(s => s.stop_name.toLowerCase() === part.toLowerCase())) {
+            tripHeadsignStops.push({
+              stop_name: part,
+              from_route: true
+            });
+          }
+        });
+      }
+    });
+
+    // Combine all stops and deduplicate
+    stops.value = combineStops(apiStops, [...routeStops, ...tripHeadsignStops]);
   } catch (error) {
     console.error('Error fetching stops:', error);
   } finally {
@@ -82,7 +149,7 @@ const sortedRoutes = computed(() =>
 );
 
 // Watch for changes in from input
-watch(from, (newVal) => {
+watch(from, async (newVal) => {
   if (newVal.length > 1) {
     filteredFromStops.value = stops.value.filter(stop =>
       stop.stop_name.toLowerCase().includes(newVal.toLowerCase())
@@ -100,7 +167,8 @@ watch(to, async (newVal) => {
       const response = await axios.get('/api/possible-destinations', {
         params: {
           from: from.value,
-          type: 'tram'
+          type: 'tram',
+          database: selectedCity.value === 'liepaja' ? 'transport_schedule_liepaja' : undefined
         }
       });
       filteredToStops.value = response.data.filter(stop =>
@@ -120,12 +188,19 @@ watch(to, async (newVal) => {
 const selectFromStop = (stop) => {
   from.value = stop.stop_name;
   showFromDropdown.value = false;
+  // Clear the 'to' field when selecting a new 'from' stop
+  to.value = '';
+  filteredToStops.value = [];
+  // Unfocus the input
+  document.activeElement.blur();
 };
 
 // Select a stop from the to dropdown
 const selectToStop = (stop) => {
   to.value = stop.stop_name;
   showToDropdown.value = false;
+  // Unfocus the input
+  document.activeElement.blur();
 };
 
 // Switch from and to values
@@ -133,6 +208,17 @@ const switchStops = () => {
   const temp = from.value;
   from.value = to.value;
   to.value = temp;
+
+  // Add any missing stops to our local stops array
+  const fromStop = filteredToStops.value.find(s => s.stop_name === from.value);
+  const toStop = filteredFromStops.value.find(s => s.stop_name === to.value);
+
+  if (fromStop && !stops.value.some(s => s.stop_name.toLowerCase() === fromStop.stop_name.toLowerCase())) {
+    stops.value.push(fromStop);
+  }
+  if (toStop && !stops.value.some(s => s.stop_name.toLowerCase() === toStop.stop_name.toLowerCase())) {
+    stops.value.push(toStop);
+  }
 
   // Also switch the filtered stops if needed
   const tempFiltered = [...filteredFromStops.value];
@@ -145,7 +231,8 @@ const searchRoute = () => {
   if (from.value && to.value) {
     router.post('/tram/search', {
       from: from.value,
-      to: to.value
+      to: to.value,
+      database: selectedCity.value === 'liepaja' ? 'transport_schedule_liepaja' : undefined
     });
   } else {
     alert(t('pleaseEnterValues'));
@@ -156,7 +243,12 @@ const isActive = (routeName) => {
   return page.url.startsWith(routeName);
 };
 
-const routeDetailsUrl = (routeId) => route('route.details', { route_id: routeId });
+const routeDetailsUrl = (routeId) => {
+  const baseUrl = route('route.details', { route_id: routeId });
+  return selectedCity.value === 'liepaja' ?
+    `${baseUrl}?database=transport_schedule_liepaja` :
+    baseUrl;
+};
 
 // Get color based on transport type
 const getTransportColor = (transportType) => {
@@ -185,8 +277,19 @@ onMounted(() => {
     locale.value = savedLanguage;
   }
 
-  // Fetch stops data when component mounts
+  // Always start with Riga
+  selectedCity.value = 'riga';
+
+  // Initialize routes from page props for Riga
+  if (page.props.routes) {
+    routes.value = page.props.routes;
+  }
+
+  // Fetch initial data
   fetchStops();
+  if (!routes.value.length) {
+    fetchRoutes();
+  }
 });
 
 const toggleTheme = () => {
@@ -300,6 +403,24 @@ const changeLanguage = (language) => {
     <div class="middle" style="display: flex; flex-direction: column; align-items: center; padding-top: 20px; gap: 20px;">
       <h1 style="font-size: 2em; font-weight: bold;">{{ t('publicTransport') }}</h1>
 
+      <!-- Add city selector -->
+      <div class="flex justify-center gap-2 mb-4">
+        <button
+          class="btn"
+          :class="{ 'btn-primary': selectedCity === 'riga' }"
+          @click="selectedCity = 'riga'"
+        >
+          {{ t('riga') }}
+        </button>
+        <button
+          class="btn"
+          :class="{ 'btn-primary': selectedCity === 'liepaja' }"
+          @click="selectedCity = 'liepaja'"
+        >
+          {{ t('liepaja') }}
+        </button>
+      </div>
+
       <div class="flex items-center gap-4">
         <div class="flex flex-col gap-4">
           <!-- From Input -->
@@ -379,7 +500,7 @@ const changeLanguage = (language) => {
             @click="() => router.visit(routeDetailsUrl(route.route_id))"
             :title="route.route_long_name"
             class="btn btn-square w-10 h-10 flex items-center justify-center text-white hover:brightness-90 transition rounded-md shadow text-sm font-bold"
-            :style="{ backgroundColor: getTransportColor('tram') }">
+            :style="{ backgroundColor: route.route_color ? `#${route.route_color}` : getTransportColor('tram') }">
             {{ route.route_short_name }}
           </button>
         </template>

@@ -30,6 +30,54 @@ class PDFController extends Controller
         $language = $request->query('lang', 'en');
         App::setLocale($language);
 
+        // Get the database from the request
+        $database = $request->query('database');
+
+        if ($database) {
+            $db = DB::connection($database);
+
+            // Get route info
+            $route = $db->table('routes')
+                ->where('route_id', $route_id)
+                ->first(['route_id', 'route_short_name', 'route_long_name', 'route_color']);
+
+            if (!$route) {
+                abort(404);
+            }
+
+            // Get stop info
+            $stop = $db->table('stops')
+                ->where('stop_id', $stop_id)
+                ->first();
+
+            if (!$stop) {
+                abort(404);
+            }
+
+            // Get all trips for this route to find matching ones
+            $trips = $db->table('trips')
+                ->where('route_id', $route_id)
+                ->pluck('trip_id');
+
+            // Get the first trip to use as a reference for stop sequence
+            $referenceTrip = $db->table('trips')
+                ->where('route_id', $route_id)
+                ->first();
+
+            // Get all stops for this route in correct sequence
+            $routeStops = $db->table('stops')
+                ->join('stop_times', 'stops.stop_id', '=', 'stop_times.stop_id')
+                ->where('stop_times.trip_id', $referenceTrip->trip_id)
+                ->orderBy('stop_times.stop_sequence')
+                ->get(['stops.stop_id', 'stops.stop_name']);
+
+            // Get all stop times for this stop and route's trips
+            $stopTimes = $db->table('stop_times')
+                ->whereIn('trip_id', $trips)
+                ->where('stop_id', $stop_id)
+                ->orderBy('departure_time')
+                ->get(['departure_time', 'trip_id']);
+        } else {
         // Get route info
         $route = ModelRoute::where('route_id', $route_id)->firstOrFail([
             'route_id', 'route_short_name', 'route_long_name', 'route_color'
@@ -59,18 +107,34 @@ class PDFController extends Controller
             ->where('stop_id', $stop_id)
             ->orderBy('departure_time')
             ->get(['departure_time', 'trip_id']);
+        }
+
+        // Get transport type
+        $transportType = $this->getTransportType($route_id);
 
         // Split times into workdays and weekends based on service_id
         $workdayTimes = [];
         $weekendTimes = [];
 
         foreach ($stopTimes as $time) {
+            if ($database) {
+                $trip = $db->table('trips')
+                    ->where('trip_id', $time->trip_id)
+                    ->first();
+
+                if (!$trip) continue;
+
+                $service = $db->table('calendar')
+                    ->where('service_id', $trip->service_id)
+                    ->first();
+            } else {
             $trip = Trip::where('trip_id', $time->trip_id)->first();
             if (!$trip) continue;
 
             $service = DB::table('calendar')
                 ->where('service_id', $trip->service_id)
                 ->first();
+            }
 
             if ($service) {
                 $timeStr = substr($time->departure_time, 0, 5);

@@ -4,6 +4,8 @@ import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import axios from 'axios';
+import { router } from '@inertiajs/vue3';
 
 const { t } = useI18n();
 
@@ -12,13 +14,16 @@ const props = defineProps({
     trip: Object,
     shapePoints: Array,
     stops: Array,
-    allStops: Array
+    allStops: Array,
+    database: String
 });
 
 const mapContainer = ref(null);
 const map = ref(null);
-const showAllStops = ref(false); // Changed to false by default
+const showAllStops = ref(false);
 const allStopsMarkers = ref([]);
+const routesByStop = ref({});
+const isLoadingRoutes = ref(false);
 
 // Optional: Filter out Mozilla deprecation warnings
 const originalWarn = console.warn;
@@ -52,6 +57,72 @@ const toggleAllStops = () => {
             marker.remove();
         }
     });
+};
+
+// Function to fetch routes for a stop
+const fetchRoutesForStop = async (stopId, stopName) => {
+    try {
+        isLoadingRoutes.value = true;
+        const params = props.database ? { database: props.database } : {};
+        const response = await axios.get(`/api/stop-routes/${stopId}`, { params });
+        const routes = response.data;
+        routesByStop.value[stopId] = routes;
+        return routes;
+    } catch (error) {
+        console.error('Error fetching routes for stop:', error);
+        return [];
+    } finally {
+        isLoadingRoutes.value = false;
+    }
+};
+
+// Function to create popup content with routes
+const createPopupContent = async (stop) => {
+    const routes = await fetchRoutesForStop(stop.stop_id, stop.stop_name);
+    let content = `<strong>${stop.stop_name}</strong>`;
+
+    if (routes.length > 0) {
+        content += '<div class="mt-2"><strong>Routes:</strong></div>';
+        content += '<div class="flex flex-wrap gap-1 mt-1">';
+
+        // Group routes by type
+        const groupedRoutes = routes.reduce((acc, route) => {
+            const type = route.route_id.includes('bus') ? 'bus' :
+                        route.route_id.includes('tram') ? 'tram' :
+                        route.route_id.includes('trol') ? 'trolleybus' : 'other';
+            if (!acc[type]) acc[type] = [];
+            acc[type].push(route);
+            return acc;
+        }, {});
+
+        // Sort and display routes by type
+        Object.entries(groupedRoutes).forEach(([type, typeRoutes]) => {
+            content += `<div class="mb-1"><span style="color: #666">${type.charAt(0).toUpperCase() + type.slice(1)}:</span> `;
+            const sortedRoutes = typeRoutes.sort((a, b) => {
+                const aNum = parseInt(a.route_short_name) || 0;
+                const bNum = parseInt(b.route_short_name) || 0;
+                return aNum - bNum;
+            });
+
+            sortedRoutes.forEach(route => {
+                const routeColor = route.route_color ? `#${route.route_color}` : '#6c757d';
+                const url = `/route/details/${route.route_id}${props.database ? '?database=' + props.database : ''}`;
+                content += `<a href="${url}"
+                    style="display: inline-block; padding: 2px 6px; margin: 1px;
+                    background-color: ${routeColor}; color: white;
+                    text-decoration: none; border-radius: 4px; font-size: 12px;">
+                    ${route.route_short_name}
+                </a>`;
+            });
+            content += '</div>';
+        });
+
+        content += '</div>';
+    } else {
+        content += '<div class="mt-2">No routes found</div>';
+    }
+
+    return content;
 };
 
 onMounted(() => {
@@ -91,14 +162,24 @@ onMounted(() => {
         iconSize: [10, 10],
     });
 
-    // Add route stops
-    props.stops.forEach(stop => {
-        L.marker([stop.stop_lat, stop.stop_lon], { icon: stopIcon })
-            .addTo(map.value)
-            .bindPopup(`<strong>${stop.stop_name}</strong><br>${t('stopSequence')}: ${stop.stop_sequence}`);
+    // Add route stops with enhanced popup
+    props.stops.forEach(async stop => {
+        const marker = L.marker([stop.stop_lat, stop.stop_lon], { icon: stopIcon })
+            .addTo(map.value);
+
+        // Create popup with loading state
+        const popup = L.popup().setContent(`<strong>${stop.stop_name}</strong><br>Loading routes...`);
+        marker.bindPopup(popup);
+
+        // Update popup content when opened
+        marker.on('popupopen', async () => {
+            const content = await createPopupContent(stop);
+            popup.setContent(content);
+            popup.update();
+        });
     });
 
-    // Special icon for last stop
+    // Special icon for last stop with enhanced popup
     if (props.stops.length > 0) {
         const lastStop = props.stops.reduce((prev, curr) =>
             curr.stop_sequence > prev.stop_sequence ? curr : prev
@@ -109,9 +190,19 @@ onMounted(() => {
             iconSize: [20, 20],
         });
 
-        L.marker([lastStop.stop_lat, lastStop.stop_lon], { icon: lastStopIcon })
-            .addTo(map.value)
-            .bindPopup(`<strong>${lastStop.stop_name}</strong><br>(${t('lastStop')})`);
+        const marker = L.marker([lastStop.stop_lat, lastStop.stop_lon], { icon: lastStopIcon })
+            .addTo(map.value);
+
+        // Create popup with loading state
+        const popup = L.popup().setContent(`<strong>${lastStop.stop_name}</strong><br>(${t('lastStop')})<br>Loading routes...`);
+        marker.bindPopup(popup);
+
+        // Update popup content when opened
+        marker.on('popupopen', async () => {
+            const content = await createPopupContent(lastStop);
+            popup.setContent(`${content}<br>(${t('lastStop')})`);
+            popup.update();
+        });
     }
 
     // Icon for all GTFS stops
@@ -120,7 +211,7 @@ onMounted(() => {
         iconSize: [8, 8],
     });
 
-    // Set of stops that are part of the route
+    // Add all GTFS stops with enhanced popup
     const routeStopCoordinates = new Set(
         props.stops.map(stop => `${stop.stop_lat},${stop.stop_lon}`)
     );
@@ -128,19 +219,25 @@ onMounted(() => {
     // Clear any existing markers
     allStopsMarkers.value = [];
 
-    // Add all GTFS stops, skipping those already part of the route
     props.allStops.forEach(stop => {
         const stopCoordinates = `${stop.stop_lat},${stop.stop_lon}`;
-
         if (!routeStopCoordinates.has(stopCoordinates)) {
-            const marker = L.marker([stop.stop_lat, stop.stop_lon], { icon: allStopsIcon })
-                .bindPopup(`<strong>${stop.stop_name}</strong>`);
+            const marker = L.marker([stop.stop_lat, stop.stop_lon], { icon: allStopsIcon });
 
-            // Only add to map if showAllStops is true (false by default)
+            // Create popup with loading state
+            const popup = L.popup().setContent(`<strong>${stop.stop_name}</strong><br>Loading routes...`);
+            marker.bindPopup(popup);
+
+            // Update popup content when opened
+            marker.on('popupopen', async () => {
+                const content = await createPopupContent(stop);
+                popup.setContent(content);
+                popup.update();
+            });
+
             if (showAllStops.value) {
                 marker.addTo(map.value);
             }
-
             allStopsMarkers.value.push(marker);
         }
     });
@@ -167,7 +264,7 @@ onMounted(() => {
             <div class="leaflet-control leaflet-bar">
                 <a
                     href="#"
-                    @click.prevent="$inertia.visit(`/route/details/${route.route_id}/${trip.trip_id}`)"
+                    @click.prevent="$inertia.visit(`/route/details/${route.route_id}/${trip.trip_id}${$page.props.database ? '?database=' + $page.props.database : ''}`)"
                     class="block text-center w-16 h-16 leading-[4rem] text-2xl"
                     :title="t('back')"
                 >

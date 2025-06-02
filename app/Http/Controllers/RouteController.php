@@ -9,6 +9,7 @@ use App\Models\StopTime;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class RouteController extends Controller
 {
@@ -228,25 +229,98 @@ class RouteController extends Controller
     }
 
     public function searchBus(Request $request)
-{
-    $request->validate([
-        'from' => 'required|string',
-        'to' => 'required|string'
-    ]);
+    {
+        $request->validate([
+            'from' => 'required|string',
+            'to' => 'required|string'
+        ]);
 
         $from = $request->input('from') ?? $request->query('from');
         $to = $request->input('to') ?? $request->query('to');
+        $database = $request->input('database') ?? $request->query('database');
 
         // Find all routes that connect these stops
-        $routes = $this->findRoutesConnectingStops($from, $to, 'bus');
+        if ($database) {
+            // Use the specified database connection
+            $db = DB::connection($database);
 
-        // If only one route found, redirect to its details
-        if ($routes->count() === 1) {
-            $route = $routes->first();
-            $trip = Trip::where('route_id', $route->route_id)->first();
-            if ($trip) {
-                $fromStop = Stop::where('stop_name', 'LIKE', "%{$from}%")->first();
-                return redirect()->to("/route/details/{$route->route_id}/{$trip->trip_id}?selected_stop_id={$fromStop->stop_id}");
+            // Search in route names first
+            $routesByName = $db->table('routes')
+                ->where('route_id', 'LIKE', '%bus%')
+                ->where(function ($query) use ($from, $to) {
+                    $query->where('route_long_name', 'LIKE', "%{$from}%-%{$to}%")
+                        ->orWhere('route_long_name', 'LIKE', "%{$from}% - %{$to}%")
+                        ->orWhere('route_long_name', 'LIKE', "%{$to}%-%{$from}%")
+                        ->orWhere('route_long_name', 'LIKE', "%{$to}% - %{$from}%");
+                })
+                ->get();
+
+            // Then search by stop sequence
+            $fromStops = $db->table('stops')
+                ->where('stop_name', 'LIKE', "%{$from}%")
+                ->pluck('stop_id');
+
+            $toStops = $db->table('stops')
+                ->where('stop_name', 'LIKE', "%{$to}%")
+                ->pluck('stop_id');
+
+            if (!$fromStops->isEmpty() && !$toStops->isEmpty()) {
+                $routesByStops = $db->table('routes')
+                    ->whereIn('route_id', function ($query) use ($fromStops, $toStops) {
+                        $query->select('trips.route_id')
+                            ->from('trips')
+                            ->join('stop_times as st1', 'trips.trip_id', '=', 'st1.trip_id')
+                            ->join('stop_times as st2', 'trips.trip_id', '=', 'st2.trip_id')
+                            ->whereIn('st1.stop_id', $fromStops)
+                            ->whereIn('st2.stop_id', $toStops)
+                            ->where('st2.stop_sequence', '>', 'st1.stop_sequence')
+                            ->distinct();
+                    })
+                    ->where('route_id', 'LIKE', '%bus%')
+                    ->get();
+
+                $routes = $routesByName->concat($routesByStops)->unique('route_id');
+            } else {
+                $routes = $routesByName;
+            }
+
+            // If only one route found, redirect to its details
+            if ($routes->count() === 1) {
+                $route = $routes->first();
+
+                // Get the first trip for this route from the correct database
+                $trip = $db->table('trips')
+                    ->where('route_id', $route->route_id)
+                    ->first();
+
+                if ($trip) {
+                    $fromStop = $db->table('stops')
+                        ->where('stop_name', 'LIKE', "%{$from}%")
+                        ->first();
+
+                    $url = "/route/details/{$route->route_id}/{$trip->trip_id}?database={$database}";
+                    if ($fromStop) {
+                        $url .= "&selected_stop_id={$fromStop->stop_id}";
+                    }
+                    return redirect()->to($url);
+                }
+            }
+        } else {
+            // Use the default database (for Riga)
+            $routes = $this->findRoutesConnectingStops($from, $to, 'bus');
+
+            // If only one route found, redirect to its details
+            if ($routes->count() === 1) {
+                $route = $routes->first();
+                $trip = Trip::where('route_id', $route->route_id)->first();
+                if ($trip) {
+                    $fromStop = Stop::where('stop_name', 'LIKE', "%{$from}%")->first();
+                    $url = "/route/details/{$route->route_id}/{$trip->trip_id}";
+                    if ($fromStop) {
+                        $url .= "?selected_stop_id={$fromStop->stop_id}";
+                    }
+                    return redirect()->to($url);
+                }
             }
         }
 
@@ -255,12 +329,14 @@ class RouteController extends Controller
             'routes' => $routes,
             'from' => $from,
             'to' => $to,
-            'type' => 'bus'
+            'type' => 'bus',
+            'database' => $database
         ])->with([
             'url' => url()->current() . '?' . http_build_query([
                 'from' => $from,
                 'to' => $to,
-                'type' => 'bus'
+                'type' => 'bus',
+                'database' => $database
             ])
         ]);
     }
@@ -449,5 +525,5 @@ class RouteController extends Controller
         })
         ->distinct()
         ->get(['stop_id', 'stop_name']);
-}
+    }
 }
